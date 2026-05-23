@@ -30,6 +30,11 @@ def sync_activity(activity, garmin_client, supabase):
     splits  = garmin_client.get_activity_splits(activity_id)
 
     summary = details.get("summaryDTO", {})
+    print("DEBUG activity keys:", list(activity.keys()))
+print("DEBUG summary keys:", list(summary.keys()))
+print("DEBUG averageSpeed:", activity.get("averageSpeed"), summary.get("averageSpeed"))
+print("DEBUG duration:", activity.get("duration"), summary.get("elapsedDuration"), summary.get("movingDuration"))
+print("DEBUG cadencia:", activity.get("averageRunningCadenceInStepsPerMinute"))
     sport   = activity.get("activityType", {}).get("typeKey", "running")
 
     # Duración
