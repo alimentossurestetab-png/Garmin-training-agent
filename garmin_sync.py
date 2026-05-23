@@ -13,8 +13,7 @@ SUPABASE_KEY     = os.environ["SUPABASE_KEY"]
 def ms_to_pace(speed_ms):
     if not speed_ms or float(speed_ms) == 0:
         return None
-    pace_min_km = (1000 / float(speed_ms)) / 60
-    return round(pace_min_km, 2)
+    return round((1000 / float(speed_ms)) / 60, 2)
 
 def sync_activity(activity, garmin_client, supabase):
     activity_id = str(activity.get("activityId", ""))
@@ -24,50 +23,26 @@ def sync_activity(activity, garmin_client, supabase):
         print(f"Actividad {activity_id} ya existe, saltando.")
         return
 
-    details = garmin_client.get_activity_details(activity_id)
-    splits  = garmin_client.get_activity_splits(activity_id)
-    summary = details.get("summaryDTO", {})
-
-    # DEBUG — ver qué manda Garmin
-    print("=== DEBUG activity keys ===")
-    print(list(activity.keys()))
-    print("=== DEBUG summary keys ===")
-    print(list(summary.keys()))
-    print("=== DEBUG velocidad ===")
-    print("activity averageSpeed:", activity.get("averageSpeed"))
-    print("activity maxSpeed:", activity.get("maxSpeed"))
-    print("summary averageSpeed:", summary.get("averageSpeed"))
-    print("summary maxSpeed:", summary.get("maxSpeed"))
-    print("=== DEBUG duracion ===")
-    print("activity duration:", activity.get("duration"))
-    print("summary elapsedDuration:", summary.get("elapsedDuration"))
-    print("summary movingDuration:", summary.get("movingDuration"))
-    print("=== DEBUG cadencia ===")
-    print("cadencia raw:", activity.get("averageRunningCadenceInStepsPerMinute"))
-    print("=== FIN DEBUG ===")
-
-    sport = activity.get("activityType", {}).get("typeKey", "running")
+    splits = garmin_client.get_activity_splits(activity_id)
+    sport  = activity.get("activityType", {}).get("typeKey", "running")
 
     # Duracion
-    duracion = summary.get("elapsedDuration") or summary.get("movingDuration") or activity.get("duration")
+    duracion = activity.get("duration")
     if duracion:
         duracion = int(float(duracion))
 
     # Pace
-    speed_avg  = summary.get("averageSpeed") or activity.get("averageSpeed")
-    speed_best = summary.get("maxSpeed") or activity.get("maxSpeed")
-    pace_avg   = ms_to_pace(speed_avg)
-    pace_mejor = ms_to_pace(speed_best)
+    pace_avg   = ms_to_pace(activity.get("averageSpeed"))
+    pace_mejor = ms_to_pace(activity.get("maxSpeed"))
 
-    # Cadencia
+    # Cadencia (Garmin manda pasos totales, dividir entre 2)
     cadencia_raw = activity.get("averageRunningCadenceInStepsPerMinute")
     cadencia = round(float(cadencia_raw) / 2, 1) if cadencia_raw else None
 
-    # Zonas FC
-    hr_zones = activity.get("heartRateZones", [])
-    zona = lambda i: float(hr_zones[i].get("secsInZone", 0)) if len(hr_zones) > i else None
+    # Zonas FC — Garmin las manda como hrTimeInZone_1..5
+    zona = lambda i: activity.get(f"hrTimeInZone_{i}")
 
-    # Splits
+    # Splits por km
     splits_data = []
     if splits and "lapDTOs" in splits:
         for lap in splits["lapDTOs"]:
@@ -98,17 +73,17 @@ def sync_activity(activity, garmin_client, supabase):
         "recovery_time_h":             activity.get("recoveryTime"),
         "training_status":             activity.get("trainingStatus"),
         "hrv_status":                  activity.get("hrvStatus"),
-        "body_battery_inicio":         activity.get("startBodyBattery"),
-        "tiempo_zona1_seg":            zona(0),
-        "tiempo_zona2_seg":            zona(1),
-        "tiempo_zona3_seg":            zona(2),
-        "tiempo_zona4_seg":            zona(3),
-        "tiempo_zona5_seg":            zona(4),
+        "body_battery_inicio":         activity.get("differenceBodyBattery"),
+        "tiempo_zona1_seg":            zona(1),
+        "tiempo_zona2_seg":            zona(2),
+        "tiempo_zona3_seg":            zona(3),
+        "tiempo_zona4_seg":            zona(4),
+        "tiempo_zona5_seg":            zona(5),
         "splits_json":                 splits_data,
     }
 
     supabase.table("actividades").insert(row).execute()
-    print(f"✓ {sport} {row['distancia_km']}km | pace {pace_avg} min/km | cadencia {cadencia} | duracion {duracion}s")
+    print(f"✓ {sport} {row['distancia_km']}km | pace {pace_avg} min/km | FC {row['fc_avg']} | cadencia {cadencia} | duracion {duracion}s")
 
     requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
     print("✓ Enviado a Make.com")
