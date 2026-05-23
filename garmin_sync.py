@@ -11,54 +11,55 @@ MAKE_WEBHOOK_URL = os.environ["MAKE_WEBHOOK_URL"]
 SUPABASE_URL     = os.environ["SUPABASE_URL"]
 SUPABASE_KEY     = os.environ["SUPABASE_KEY"]
 
-def get_last_activity_id(supabase):
-    result = supabase.table("actividades").select("garmin_id").order("fecha", desc=True).limit(1).execute()
-    if result.data:
-        return result.data[0]["garmin_id"]
-    return None
-
-def parse_duration(duration_str):
-    if not duration_str:
+def ms_to_pace(speed_ms):
+    """Convierte m/s a min/km"""
+    if not speed_ms or speed_ms == 0:
         return None
-    try:
-        parts = str(duration_str).split(":")
-        if len(parts) == 3:
-            return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(float(parts[2]))
-        elif len(parts) == 2:
-            return int(parts[0]) * 60 + int(float(parts[1]))
-        return int(float(duration_str))
-    except:
-        return None
+    pace_min_km = (1000 / speed_ms) / 60
+    return round(pace_min_km, 2)
 
 def sync_activity(activity, garmin_client, supabase):
     activity_id = str(activity.get("activityId", ""))
 
-    # Verificar si ya existe
     existing = supabase.table("actividades").select("id").eq("garmin_id", activity_id).execute()
     if existing.data:
         print(f"Actividad {activity_id} ya existe, saltando.")
         return
 
-    # Detalles completos
     details = garmin_client.get_activity_details(activity_id)
     splits  = garmin_client.get_activity_splits(activity_id)
-    hr_data = garmin_client.get_heart_rates(activity.get("startTimeLocal", "")[:10])
 
     summary = details.get("summaryDTO", {})
     sport   = activity.get("activityType", {}).get("typeKey", "running")
 
+    # Duración
+    duracion = summary.get("elapsedDuration") or summary.get("movingDuration") or activity.get("duration")
+    if duracion:
+        duracion = int(float(duracion))
+
+    # Pace en min/km (Garmin manda m/s)
+    speed_avg  = summary.get("averageSpeed") or activity.get("averageSpeed")
+    speed_best = summary.get("maxSpeed") or activity.get("maxSpeed")
+    pace_avg   = ms_to_pace(speed_avg)
+    pace_mejor = ms_to_pace(speed_best)
+
+    # Cadencia (Garmin manda pasos totales, dividir entre 2)
+    cadencia_raw = activity.get("averageRunningCadenceInStepsPerMinute")
+    cadencia = round(cadencia_raw / 2, 1) if cadencia_raw else None
+
     # Zonas de FC
     hr_zones = activity.get("heartRateZones", [])
-    zona = lambda i: int(hr_zones[i].get("secsInZone", 0)) if len(hr_zones) > i else None
+    zona = lambda i: float(hr_zones[i].get("secsInZone", 0)) if len(hr_zones) > i else None
 
     # Splits por km
     splits_data = []
     if splits and "lapDTOs" in splits:
         for lap in splits["lapDTOs"]:
+            lap_speed = lap.get("averageSpeed", 0)
             splits_data.append({
-                "km":       lap.get("lapIndex"),
-                "pace":     round(lap.get("averageSpeed", 0), 2),
-                "fc_avg":   lap.get("averageHR"),
+                "km":        lap.get("lapIndex"),
+                "pace":      ms_to_pace(lap_speed),
+                "fc_avg":    lap.get("averageHR"),
                 "distancia": round(lap.get("distance", 0) / 1000, 2)
             })
 
@@ -67,13 +68,14 @@ def sync_activity(activity, garmin_client, supabase):
         "fecha":                       activity.get("startTimeGMT"),
         "tipo":                        sport,
         "distancia_km":                round(activity.get("distance", 0) / 1000, 2),
-        "duracion_seg":                parse_duration(summary.get("elapsedDuration")),
-        "pace_avg":                    round(summary.get("averageSpeed", 0), 2),
+        "duracion_seg":                duracion,
+        "pace_avg":                    pace_avg,
+        "pace_mejor":                  pace_mejor,
         "fc_avg":                      activity.get("averageHR"),
         "fc_max":                      activity.get("maxHR"),
         "calorias":                    activity.get("calories"),
         "elevacion_m":                 activity.get("elevationGain"),
-        "cadencia_avg":                activity.get("averageRunningCadenceInStepsPerMinute"),
+        "cadencia_avg":                cadencia,
         "vo2max":                      activity.get("vO2MaxValue"),
         "training_load":               activity.get("activityTrainingLoad"),
         "training_effect_aerobico":    activity.get("aerobicTrainingEffect"),
@@ -90,13 +92,11 @@ def sync_activity(activity, garmin_client, supabase):
         "splits_json":                 splits_data,
     }
 
-    # Guardar en Supabase
     supabase.table("actividades").insert(row).execute()
-    print(f"Actividad {activity_id} guardada: {sport} {row['distancia_km']}km")
+    print(f"✓ Actividad guardada: {sport} {row['distancia_km']}km | pace {pace_avg} min/km | FC {row['fc_avg']}")
 
-    # Mandar a Make.com para que Claude analice
     requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
-    print(f"Actividad enviada a Make.com")
+    print(f"✓ Enviada a Make.com")
 
 def main():
     print("Conectando a Garmin Connect...")
@@ -106,7 +106,6 @@ def main():
 
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    # Revisar últimas 24 horas
     end   = datetime.now(timezone.utc)
     start = end - timedelta(hours=25)
 
