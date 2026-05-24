@@ -698,13 +698,15 @@ async function loadDashboard() {
   // Analysis
   const analyses = await query('analisis', '?order=fecha.desc&limit=1');
   if (analyses && analyses.length > 0 && analyses[0].resumen) {
-    const text = analyses[0].resumen
-      .replace(/#{1,3} /g, '')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n- /g, '</p><ul><li>')
-      .replace(/\n/g, '<br>');
-    document.getElementById('analysisText').innerHTML = `<p>${text}</p>`;
+    let text = analyses[0].resumen;
+    text = text.split('### ').join('').split('## ').join('').split('# ').join('');
+    text = text.split('**').join('~~BOLD~~');
+    let parts = text.split('~~BOLD~~');
+    text = parts.map((p, i) => i % 2 === 1 ? '<strong>' + p + '</strong>' : p).join('');
+    text = text.split('\n\n').join('</p><p>');
+    text = text.split('\n- ').join('<br>• ');
+    text = text.split('\n').join('<br>');
+    document.getElementById('analysisText').innerHTML = '<p>' + text + '</p>';
   } else {
     document.getElementById('analysisText').innerHTML = '<div style="color:var(--muted);font-size:13px">No hay análisis disponible aún. Completa un entreno para recibir tu primer análisis.</div>';
   }
@@ -936,17 +938,14 @@ async function selectActivity(garminId) {
   document.getElementById('analysisText').innerHTML = '<div class="loading"><div class="spinner"></div>Buscando análisis...</div>';
   const analyses = await query('analisis', `?actividad_id=eq.${activity.id}&order=fecha.desc&limit=1`);
   if (analyses && analyses.length > 0 && analyses[0].resumen) {
-    const text = analyses[0].resumen
-      .replace(/#{1,3} /g, '')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/
-
-/g, '</p><p>')
-      .replace(/
-- /g, '</p><ul><li>')
-      .replace(/
-/g, '<br>');
-    document.getElementById('analysisText').innerHTML = `<p>${text}</p>`;
+    let text = analyses[0].resumen;
+    text = text.split('### ').join('').split('## ').join('').split('# ').join('');
+    let bp = text.split('**');
+    text = bp.map((p, i) => i % 2 === 1 ? '<strong>' + p + '</strong>' : p).join('');
+    text = text.split('\n\n').join('</p><p>');
+    text = text.split('\n- ').join('<br>• ');
+    text = text.split('\n').join('<br>');
+    document.getElementById('analysisText').innerHTML = '<p>' + text + '</p>';
   } else {
     document.getElementById('analysisText').innerHTML = '<div style="color:var(--muted);font-size:13px">Sin análisis para esta actividad.</div>';
   }
