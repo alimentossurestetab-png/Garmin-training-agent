@@ -580,10 +580,12 @@ function formatDate(iso) {
 }
 
 function updateCountdown() {
-  const races = [
-    { name: 'MEDIO MARATÓN MAYO', date: '2026-05-31' },
-    { name: 'MEDIO MARATÓN JUNIO', date: '2026-06-29' }
+  const defaultRaces = [
+    { name: 'ROCK N ROLL SAN DIEGO', date: '2026-05-31', objetivo: '1:59:59', stretch: '1:50:00', dream: '1:40:00' },
+    { name: 'MEDIO MARATÓN VILLAHERMOSA', date: '2026-06-28', objetivo: '1:59:59', stretch: '1:50:00', dream: '1:40:00' }
   ];
+  const savedRaces = JSON.parse(localStorage.getItem('races') || 'null') || defaultRaces;
+  const races = savedRaces;
   const now = new Date();
   const upcoming = races.find(r => new Date(r.date + 'T23:59:59') >= now) || races[races.length - 1];
   const target = new Date(upcoming.date + 'T07:00:00');
@@ -963,5 +965,102 @@ setInterval(updateCountdown, 60000);
 loadDashboard();
 setInterval(loadDashboard, 300000); // refresh cada 5 min
 </script>
+
+<!-- RACE MANAGER MODAL -->
+<div id="raceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#111;border:1px solid #333;border-radius:16px;padding:32px;width:90%;max-width:560px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:var(--accent)">GESTIÓN DE CARRERAS</div>
+      <div onclick="closeRaceManager()" style="cursor:pointer;color:#666;font-size:20px">✕</div>
+    </div>
+    <div id="raceList" style="margin-bottom:24px"></div>
+    <div style="border-top:1px solid #222;padding-top:20px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:#666;margin-bottom:16px">AGREGAR CARRERA</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <div style="font-size:10px;color:#555;margin-bottom:4px;letter-spacing:1px">NOMBRE</div>
+          <input id="newRaceName" placeholder="Ej. Medio Maratón CDMX" style="width:100%;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Sans',sans-serif">
+        </div>
+        <div>
+          <div style="font-size:10px;color:#555;margin-bottom:4px;letter-spacing:1px">FECHA</div>
+          <input id="newRaceDate" type="date" style="width:100%;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Mono',monospace">
+        </div>
+        <div>
+          <div style="font-size:10px;color:#555;margin-bottom:4px;letter-spacing:1px">OBJETIVO BASE</div>
+          <input id="newRaceObjetivo" placeholder="1:59:59" style="width:100%;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Mono',monospace">
+        </div>
+        <div>
+          <div style="font-size:10px;color:#555;margin-bottom:4px;letter-spacing:1px">STRETCH GOAL</div>
+          <input id="newRaceStretch" placeholder="1:50:00" style="width:100%;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Mono',monospace">
+        </div>
+      </div>
+      <button onclick="addRace()" style="width:100%;background:var(--accent);color:#000;border:none;border-radius:8px;padding:12px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;cursor:pointer">AGREGAR CARRERA</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function getRaces() {
+  const defaultRaces = [
+    { name: 'ROCK N ROLL SAN DIEGO', date: '2026-05-31', objetivo: '1:59:59', stretch: '1:50:00', dream: '1:40:00' },
+    { name: 'MEDIO MARATÓN VILLAHERMOSA', date: '2026-06-28', objetivo: '1:59:59', stretch: '1:50:00', dream: '1:40:00' }
+  ];
+  return JSON.parse(localStorage.getItem('races') || JSON.stringify(defaultRaces));
+}
+
+function saveRaces(races) {
+  localStorage.setItem('races', JSON.stringify(races));
+}
+
+function openRaceManager() {
+  document.getElementById('raceModal').style.display = 'flex';
+  renderRaceList();
+}
+
+function closeRaceManager() {
+  document.getElementById('raceModal').style.display = 'none';
+  updateCountdown();
+}
+
+function renderRaceList() {
+  const races = getRaces();
+  document.getElementById('raceList').innerHTML = races.map((r, i) => `
+    <div style="background:#1a1a1a;border:1px solid #222;border-radius:8px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--accent)">${r.name}</div>
+        <div style="font-family:'DM Mono',monospace;font-size:11px;color:#666;margin-top:2px">${new Date(r.date + 'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})} · Base: ${r.objetivo}</div>
+      </div>
+      <div onclick="deleteRace(${i})" style="color:#555;cursor:pointer;font-size:18px;padding:4px 8px">🗑</div>
+    </div>
+  `).join('') || '<div style="color:#555;font-size:13px;text-align:center;padding:20px">No hay carreras registradas</div>';
+}
+
+function addRace() {
+  const name = document.getElementById('newRaceName').value.trim().toUpperCase();
+  const date = document.getElementById('newRaceDate').value;
+  const objetivo = document.getElementById('newRaceObjetivo').value.trim() || '1:59:59';
+  const stretch = document.getElementById('newRaceStretch').value.trim() || '1:50:00';
+  if (!name || !date) { alert('Nombre y fecha son requeridos'); return; }
+  const races = getRaces();
+  races.push({ name, date, objetivo, stretch, dream: '1:40:00' });
+  races.sort((a, b) => new Date(a.date) - new Date(b.date));
+  saveRaces(races);
+  document.getElementById('newRaceName').value = '';
+  document.getElementById('newRaceDate').value = '';
+  document.getElementById('newRaceObjetivo').value = '';
+  document.getElementById('newRaceStretch').value = '';
+  renderRaceList();
+  updateCountdown();
+}
+
+function deleteRace(idx) {
+  const races = getRaces();
+  races.splice(idx, 1);
+  saveRaces(races);
+  renderRaceList();
+  updateCountdown();
+}
+</script>
+
 </body>
 </html>
