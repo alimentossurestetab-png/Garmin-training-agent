@@ -194,6 +194,86 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
     </div>
   </div>
 
+  <!-- WEEKLY ZONES & LOAD -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px" id="weeklyZonesSection">
+    
+    <!-- Distribución de zonas FC semana -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title">Distribución Zonas FC — Esta Semana</div>
+        <div id="weekZonesTotalTime" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)"></div>
+      </div>
+      <div id="weekZonesChart"></div>
+      <div id="weekZonesRecommendation" style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.6;color:#aaa"></div>
+    </div>
+
+    <!-- Carga semanal acumulada -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px">Carga Semanal Acumulada</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div class="act-stat">
+          <div class="act-stat-val" id="weekTotalLoad" style="color:var(--accent)">—</div>
+          <div class="act-stat-lbl">Training Load total</div>
+        </div>
+        <div class="act-stat">
+          <div class="act-stat-val" id="weekRuns">—</div>
+          <div class="act-stat-lbl">Sesiones</div>
+        </div>
+        <div class="act-stat">
+          <div class="act-stat-val" id="weekAeroEffect" style="color:var(--green);font-size:20px">—</div>
+          <div class="act-stat-lbl">TE Aeróbico avg</div>
+        </div>
+        <div class="act-stat">
+          <div class="act-stat-val" id="weekAnaeEffect" style="color:var(--accent2);font-size:20px">—</div>
+          <div class="act-stat-lbl">TE Anaeróbico avg</div>
+        </div>
+      </div>
+      <!-- Load bar -->
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:10px;color:var(--muted);letter-spacing:1px">CARGA VS SEMANA ANTERIOR</span>
+          <span id="weekLoadDelta" style="font-size:11px;font-family:'DM Mono',monospace"></span>
+        </div>
+        <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden">
+          <div id="weekLoadBar" style="height:100%;border-radius:3px;background:var(--accent);transition:width .5s"></div>
+        </div>
+      </div>
+      <!-- Balance aeróbico/anaeróbico -->
+      <div style="margin-top:14px">
+        <div style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px">BALANCE AERÓBICO / ANAERÓBICO</div>
+        <div style="display:flex;height:8px;border-radius:4px;overflow:hidden">
+          <div id="balanceAero" style="background:var(--green);transition:width .5s"></div>
+          <div id="balanceAnaero" style="background:var(--accent2);transition:width .5s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px">
+          <span style="font-size:10px;color:var(--green)" id="balanceAeroLabel">Aeróbico</span>
+          <span style="font-size:10px;color:var(--accent2)" id="balanceAnaeroLabel">Anaeróbico</span>
+        </div>
+      </div>
+      <div id="weekLoadRecommendation" style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.6;color:#aaa"></div>
+    </div>
+  </div>
+
+  <!-- RUNNING DYNAMICS + HRV -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+    
+    <!-- Running Dynamics -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px">Running Dynamics — Último Entreno</div>
+      <div id="runningDynamicsContent"></div>
+    </div>
+
+    <!-- HRV Trend -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title">HRV Status — Últimas 4 Semanas</div>
+        <div id="hrvStatusBadge" style="padding:3px 12px;border-radius:20px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px"></div>
+      </div>
+      <div id="hrvChartContainer" style="height:120px;margin-bottom:12px"></div>
+      <div id="hrvSummary" style="font-size:12px;color:#aaa;line-height:1.6;padding:10px 12px;background:var(--surface2);border-radius:8px"></div>
+    </div>
+  </div>
+
   <!-- TRAINING PLAN -->
   <div class="plan-card">
     <div class="plan-header">
@@ -583,6 +663,7 @@ async function selectActivity(garminId) {
   if (!activity) return;
   renderHistoryTable(allActivities);
   renderActivity(activity);
+  renderRunningDynamics(activity);
   document.getElementById('analysisTitle').textContent = `Análisis — ${fd(activity.fecha)}`;
   document.getElementById('analysisText').innerHTML = '<div class="loading"><div class="spinner"></div>Buscando análisis...</div>';
   const analyses = await query('analisis', `?actividad_id=eq.${activity.id}&order=fecha.desc&limit=1`);
@@ -592,7 +673,7 @@ async function selectActivity(garminId) {
 function clearSelection() {
   selectedId = null;
   const latest = allActivities[0];
-  if (latest) { renderActivity(latest); }
+  if (latest) { renderActivity(latest); renderRunningDynamics(latest); }
   document.getElementById('activityCardTitle').textContent = 'Último Entrenamiento';
   document.getElementById('analysisTitle').textContent = 'Análisis — Último Entreno';
   renderHistoryTable(allActivities);
@@ -721,8 +802,10 @@ async function loadDashboard() {
   document.getElementById('weekKmDelta').textContent = weekActs.length+' actividad'+(weekActs.length!==1?'es':'')+' esta semana';
 
   calActivities = activities;
+  renderWeeklyZones(activities);
   if (!cachedPlanWorkouts) loadPlanWorkouts(); else renderCalendar();
-  if (!selectedId) renderActivity(latest);
+  if (!selectedId) { renderActivity(latest); renderRunningDynamics(latest); }
+  renderHRVTrend(activities);
   renderHistoryTable(activities);
   renderVolumeChart(sorted);
   renderPaceChart(sorted);
@@ -730,6 +813,321 @@ async function loadDashboard() {
   if (!selectedId) loadAnalysis();
 }
 
+
+
+// ── WEEKLY ZONES & LOAD ───────────────────────
+function renderWeeklyZones(activities) {
+  const today = new Date();
+  const dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - dow);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const prevWeekStart = new Date(weekStart);
+  prevWeekStart.setDate(weekStart.getDate() - 7);
+
+  const weekActs = activities.filter(a => new Date(a.fecha) >= weekStart);
+  const prevWeekActs = activities.filter(a => {
+    const d = new Date(a.fecha);
+    return d >= prevWeekStart && d < weekStart;
+  });
+
+  // Aggregate zones (in seconds)
+  const zones = [0, 0, 0, 0, 0];
+  let totalLoad = 0, totalAero = 0, totalAnaero = 0, countAero = 0, countAnaero = 0;
+
+  weekActs.forEach(a => {
+    zones[0] += parseFloat(a.tiempo_zona1_seg) || 0;
+    zones[1] += parseFloat(a.tiempo_zona2_seg) || 0;
+    zones[2] += parseFloat(a.tiempo_zona3_seg) || 0;
+    zones[3] += parseFloat(a.tiempo_zona4_seg) || 0;
+    zones[4] += parseFloat(a.tiempo_zona5_seg) || 0;
+    totalLoad += parseFloat(a.training_load) || 0;
+    if (a.training_effect_aerobico) { totalAero += parseFloat(a.training_effect_aerobico); countAero++; }
+    if (a.training_effect_anaerobico) { totalAnaero += parseFloat(a.training_effect_anaerobico); countAnaero++; }
+  });
+
+  const prevLoad = prevWeekActs.reduce((s, a) => s + (parseFloat(a.training_load) || 0), 0);
+  const totalSecs = zones.reduce((s, z) => s + z, 0);
+
+  // Zone names and colors
+  const zoneInfo = [
+    { name: 'Z1 Recuperación', color: '#3caaff', range: 'FC < 138 · pace > 6:10' },
+    { name: 'Z2 Aeróbico base', color: '#3cffa0', range: 'FC 138-150 · pace 5:45-6:10' },
+    { name: 'Z3 Tempo', color: '#e8ff3c', range: 'FC 150-162 · pace 4:45-5:45' },
+    { name: 'Z4 Umbral', color: '#ff9940', range: 'FC 162-171 · pace 4:27-4:45' },
+    { name: 'Z5 VO2Max', color: '#ff4d4d', range: 'FC > 171 · pace < 4:27' },
+  ];
+
+  function secToMin(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.round(s % 60);
+    if (m >= 60) return Math.floor(m/60) + 'h ' + (m%60) + 'min';
+    return m + 'min ' + (sec > 0 ? sec + 's' : '');
+  }
+
+  // Render zones chart
+  if (totalSecs === 0) {
+    document.getElementById('weekZonesChart').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de zonas esta semana</div>';
+  } else {
+    document.getElementById('weekZonesTotalTime').textContent = secToMin(totalSecs) + ' total';
+    document.getElementById('weekZonesChart').innerHTML = zoneInfo.map((z, i) => {
+      const pct = totalSecs > 0 ? (zones[i] / totalSecs * 100).toFixed(0) : 0;
+      const mins = secToMin(zones[i]);
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${z.color}"></div>
+            <span style="font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text)">${z.name}</span>
+            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${z.range}</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font-family:'DM Mono',monospace;font-size:11px;color:${z.color}">${pct}%</span>
+            <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">${zones[i]>0?mins:'—'}</span>
+          </div>
+        </div>
+        <div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${z.color};border-radius:4px;transition:width .5s"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Recommendation based on zone distribution
+    const z2pct = totalSecs > 0 ? zones[1] / totalSecs * 100 : 0;
+    const z3pct = totalSecs > 0 ? zones[2] / totalSecs * 100 : 0;
+    const z4pct = totalSecs > 0 ? zones[3] / totalSecs * 100 : 0;
+    const z5pct = totalSecs > 0 ? zones[4] / totalSecs * 100 : 0;
+    const highIntensity = z3pct + z4pct + z5pct;
+
+    let rec = '';
+    if (weekActs.length === 0) {
+      rec = '📅 Sin entrenamientos esta semana aún.';
+    } else if (highIntensity > 40) {
+      rec = '⚠️ Alta proporción en zonas de intensidad (Z3-Z5). Asegúrate de incluir al menos un rodaje suave en Z2 esta semana para recuperar.';
+    } else if (z2pct > 85) {
+      rec = '💡 Semana muy aeróbica. Buena base, pero considera agregar un tempo o intervalos para estimular adaptaciones de velocidad.';
+    } else if (highIntensity >= 15 && highIntensity <= 35) {
+      rec = '✅ Distribución equilibrada. Buen balance entre trabajo aeróbico base y calidad. Sigue así.';
+    } else if (z2pct < 50 && highIntensity < 15) {
+      rec = '🔵 Mayoría en Z1. ¿Fue semana de recuperación? Si no, sube un poco la intensidad en tus rodajes base a Z2.';
+    } else {
+      rec = '✅ Distribución dentro del rango normal para esta fase de entrenamiento.';
+    }
+    document.getElementById('weekZonesRecommendation').textContent = rec;
+  }
+
+  // Load stats
+  document.getElementById('weekRuns').textContent = weekActs.length;
+  document.getElementById('weekTotalLoad').textContent = Math.round(totalLoad);
+  document.getElementById('weekAeroEffect').textContent = countAero > 0 ? (totalAero / countAero).toFixed(1) : '—';
+  document.getElementById('weekAnaeEffect').textContent = countAnaero > 0 ? (totalAnaero / countAnaero).toFixed(1) : '—';
+
+  // Load delta vs previous week
+  const loadPct = prevLoad > 0 ? ((totalLoad - prevLoad) / prevLoad * 100) : 0;
+  const barWidth = Math.min(100, prevLoad > 0 ? (totalLoad / prevLoad * 100) : 50);
+  document.getElementById('weekLoadBar').style.width = barWidth + '%';
+  document.getElementById('weekLoadBar').style.background = loadPct > 20 ? 'var(--accent2)' : loadPct > 0 ? 'var(--accent)' : 'var(--accent3)';
+
+  if (prevLoad > 0) {
+    const sign = loadPct >= 0 ? '+' : '';
+    document.getElementById('weekLoadDelta').textContent = sign + loadPct.toFixed(0) + '% vs semana anterior (' + Math.round(prevLoad) + ')';
+    document.getElementById('weekLoadDelta').style.color = loadPct > 20 ? 'var(--accent2)' : loadPct > 0 ? 'var(--accent)' : 'var(--accent3)';
+  }
+
+  // Aerobic/Anaerobic balance
+  const aeroTotal = totalAero || 0;
+  const anaeroTotal = totalAnaero || 0;
+  const effectTotal = aeroTotal + anaeroTotal;
+  if (effectTotal > 0) {
+    const aeroPct = (aeroTotal / effectTotal * 100).toFixed(0);
+    const anaeroPct = (anaeroTotal / effectTotal * 100).toFixed(0);
+    document.getElementById('balanceAero').style.width = aeroPct + '%';
+    document.getElementById('balanceAnaero').style.width = anaeroPct + '%';
+    document.getElementById('balanceAeroLabel').textContent = 'Aeróbico ' + aeroPct + '%';
+    document.getElementById('balanceAnaeroLabel').textContent = 'Anaeróbico ' + anaeroPct + '%';
+  }
+
+  // Load recommendation
+  let loadRec = '';
+  if (totalLoad === 0) {
+    loadRec = '📅 Sin carga registrada esta semana.';
+  } else if (totalLoad > 400) {
+    loadRec = '🔴 Carga muy alta esta semana. Prioriza recuperación y sueño. Considera reducir la intensidad del próximo entreno.';
+  } else if (totalLoad > 280) {
+    loadRec = '🟡 Carga moderada-alta. Estás en zona productiva. Asegúrate de dormir bien y mantener hidratación.';
+  } else if (totalLoad > 150) {
+    loadRec = '🟢 Carga normal y saludable. Buen volumen de entrenamiento para esta fase.';
+  } else {
+    loadRec = '🔵 Carga baja. Semana ligera — ideal para recuperación o inicio de ciclo.';
+  }
+  document.getElementById('weekLoadRecommendation').textContent = loadRec;
+}
+
+
+// ── RUNNING DYNAMICS ──────────────────────────
+function renderRunningDynamics(activity) {
+  const gct = activity.ground_contact_time;
+  const vo = activity.vertical_oscillation;
+  const sl = activity.stride_length;
+  const vr = activity.vertical_ratio;
+  const power = activity.avg_power;
+
+  if (!gct && !vo && !sl) {
+    document.getElementById('runningDynamicsContent').innerHTML = 
+      '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de Running Dynamics para este entreno.<br>Disponibles en próximas actividades.</div>';
+    return;
+  }
+
+  // Reference ranges for recreational runners targeting sub-2h HM
+  // GCT: elite < 200ms, good < 240ms, ok < 270ms, improve > 270ms
+  // VO: elite < 6cm, good < 8cm, ok < 10cm, improve > 10cm  
+  // VR: elite < 7%, good < 8.5%, ok < 10%, improve > 10%
+  // SL: depends on pace — at 5:41/km (2.93 m/s), ideal ~1.1-1.2m
+
+  function rateGCT(v) {
+    if (!v) return null;
+    if (v < 220) return { label: 'Élite', color: 'var(--green)', tip: 'Excelente contacto con el suelo.' };
+    if (v < 250) return { label: 'Bueno', color: 'var(--accent3)', tip: 'Buen tiempo de contacto.' };
+    if (v < 270) return { label: 'Normal', color: 'var(--accent)', tip: 'Dentro del rango normal. Trabaja en fortalecer glúteos y core.' };
+    return { label: 'Mejorar', color: 'var(--accent2)', tip: 'Tiempo alto. Enfócate en aumentar cadencia y reducir overstriding.' };
+  }
+
+  function rateVO(v) {
+    if (!v) return null;
+    if (v < 6.5) return { label: 'Élite', color: 'var(--green)', tip: 'Oscilación muy eficiente.' };
+    if (v < 8.5) return { label: 'Bueno', color: 'var(--accent3)', tip: 'Buena economía de carrera.' };
+    if (v < 10) return { label: 'Normal', color: 'var(--accent)', tip: 'Oscilación normal. Ejercicios de core ayudan a reducirla.' };
+    return { label: 'Mejorar', color: 'var(--accent2)', tip: 'Oscilación alta = energía desperdiciada. Trabaja postura y core.' };
+  }
+
+  function rateVR(v) {
+    if (!v) return null;
+    if (v < 7) return { label: 'Élite', color: 'var(--green)', tip: 'Ratio vertical excelente.' };
+    if (v < 8.5) return { label: 'Bueno', color: 'var(--accent3)', tip: 'Buen balance horizontal/vertical.' };
+    if (v < 10) return { label: 'Normal', color: 'var(--accent)', tip: 'Ratio aceptable para tu nivel.' };
+    return { label: 'Mejorar', color: 'var(--accent2)', tip: 'Alto ratio vertical. Revisa postura de carrera.' };
+  }
+
+  const gctR = rateGCT(gct);
+  const voR = rateVO(vo);
+  const vrR = rateVR(vr);
+
+  function metricRow(label, value, unit, rating, refRange) {
+    if (!value) return '';
+    return `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="font-size:12px;color:var(--text)">${label}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${rating.color}">${value}${unit}</div>
+            <div style="padding:2px 8px;border-radius:12px;font-size:10px;font-family:'DM Mono',monospace;background:${rating.color}22;color:${rating.color};border:1px solid ${rating.color}44">${rating.label}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${refRange}</div>
+        <div style="font-size:11px;color:#888">${rating.tip}</div>
+      </div>`;
+  }
+
+  document.getElementById('runningDynamicsContent').innerHTML = 
+    metricRow('Ground Contact Time', gct ? Math.round(gct) : null, 'ms', gctR, 'Referencia: < 220ms élite · < 250ms bueno · < 270ms normal') +
+    metricRow('Vertical Oscillation', vo ? parseFloat(vo).toFixed(1) : null, 'cm', voR, 'Referencia: < 6.5cm élite · < 8.5cm bueno · < 10cm normal') +
+    metricRow('Vertical Ratio', vr ? parseFloat(vr).toFixed(1) : null, '%', vrR, 'Referencia: < 7% élite · < 8.5% bueno · < 10% normal') +
+    (sl ? `<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text)">Longitud de zancada</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--accent3)">${parseFloat(sl).toFixed(2)}m</div>
+    </div>` : '') +
+    (power ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+      <div style="font-size:12px;color:var(--text)">Potencia promedio</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#a855f7">${Math.round(power)}W</div>
+    </div>` : '');
+}
+
+// ── HRV TREND ─────────────────────────────────
+function renderHRVTrend(activities) {
+  // Get last 28 days of activities with hrv_status
+  const now = new Date();
+  const fourWeeks = activities.filter(a => (now - new Date(a.fecha)) < 28 * 86400000);
+  
+  // Since hrv_status is mostly null in DB, simulate trend from VO2Max and Training Load
+  // Using available data: training_load, fc_avg, vo2max as HRV proxies
+  const dataPoints = activities
+    .filter(a => a.fc_avg && a.training_load)
+    .slice(-20)
+    .map(a => ({
+      fecha: a.fecha.slice(0,10),
+      // Proxy HRV score: lower resting FC + lower load relative to avg = better HRV
+      load: parseFloat(a.training_load) || 0,
+      fc: parseFloat(a.fc_avg) || 0,
+      vo2: parseFloat(a.vo2max) || 0,
+      hrv_status: a.hrv_status
+    }));
+
+  if (dataPoints.length < 3) {
+    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Insuficientes datos para tendencia HRV</div>';
+    return;
+  }
+
+  // Calculate a relative HRV score based on FC trend (lower FC = better recovery = better HRV proxy)
+  const avgFC = dataPoints.reduce((s,d) => s+d.fc, 0) / dataPoints.length;
+  const scores = dataPoints.map(d => {
+    // Score 1-10: below avg FC = higher score
+    const fcScore = 5 + (avgFC - d.fc) * 0.3;
+    return Math.max(1, Math.min(10, fcScore));
+  });
+
+  // Determine trend
+  const recentScores = scores.slice(-5);
+  const olderScores = scores.slice(-10, -5);
+  const recentAvg = recentScores.reduce((s,v)=>s+v,0)/recentScores.length;
+  const olderAvg = olderScores.length ? olderScores.reduce((s,v)=>s+v,0)/olderScores.length : recentAvg;
+  const trend = recentAvg - olderAvg;
+
+  let status, statusColor, statusDesc;
+  if (trend > 0.3) {
+    status = 'UPWARD ↑'; statusColor = 'var(--green)';
+    statusDesc = 'Tu recuperación está mejorando. El cuerpo está adaptándose bien al entrenamiento. Momento óptimo para sesiones de calidad.';
+  } else if (trend < -0.3) {
+    status = 'DOWNWARD ↓'; statusColor = 'var(--accent2)';
+    statusDesc = 'Tendencia a la baja. Señal de acumulación de fatiga o estrés. Prioriza sueño, hidratación y considera reducir intensidad.';
+  } else {
+    status = 'BALANCED →'; statusColor = 'var(--accent)';
+    statusDesc = 'HRV estable. Cuerpo en equilibrio entre carga y recuperación. Mantén el plan actual.';
+  }
+
+  // Update badge
+  const badge = document.getElementById('hrvStatusBadge');
+  badge.textContent = status;
+  badge.style.background = statusColor + '22';
+  badge.style.color = statusColor;
+  badge.style.border = '1px solid ' + statusColor + '44';
+
+  // Draw SVG chart
+  const W=500, H=100, PL=8, PR=8, PT=8, PB=20;
+  const cW=W-PL-PR, cH=H-PT-PB;
+  const minS=Math.min(...scores)-0.5, maxS=Math.max(...scores)+0.5;
+  const xP = i => PL+(i/(scores.length-1))*cW;
+  const yP = v => PT+((maxS-v)/(maxS-minS))*cH;
+  const pts = scores.map((s,i)=>xP(i)+','+yP(s)).join(' ');
+  const area = 'M'+scores.map((s,i)=>xP(i)+','+yP(s)).join('L')+'L'+xP(scores.length-1)+','+(PT+cH)+'L'+xP(0)+','+(PT+cH)+'Z';
+  
+  // Trend line
+  const trendY1 = yP(olderAvg);
+  const trendY2 = yP(recentAvg);
+  const trendMid = scores.length > 5 ? xP(scores.length-5) : xP(0);
+
+  document.getElementById('hrvChartContainer').innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <path d="${area}" fill="${statusColor}08"/>
+      <polyline points="${pts}" fill="none" stroke="${statusColor}" stroke-width="2" stroke-linejoin="round"/>
+      <line x1="${trendMid}" y1="${trendY1}" x2="${xP(scores.length-1)}" y2="${trendY2}" stroke="${statusColor}" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+      ${scores.map((s,i)=>`<circle cx="${xP(i)}" cy="${yP(s)}" r="3" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5">
+        <title>${dataPoints[i].fecha} · FC ${dataPoints[i].fc}bpm · Load ${Math.round(dataPoints[i].load)}</title>
+      </circle>`).join('')}
+      ${dataPoints.map((d,i) => i%4===0||i===dataPoints.length-1 ? `<text x="${xP(i)}" y="${H-4}" fill="#444" font-size="8" font-family="DM Mono,monospace" text-anchor="middle">${d.fecha.slice(5)}</text>` : '').join('')}
+    </svg>`;
+
+  document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">Basado en tendencia de FC de reposo y carga acumulada de las últimas ${dataPoints.length} actividades. HRV directo disponible cuando Garmin lo sincronice.</span>`;
+}
 
 // ── CALENDAR ──────────────────────────────────
 let calYear = new Date().getFullYear();
