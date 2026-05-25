@@ -217,9 +217,15 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
     </div>
     <!-- Day headers -->
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
-      ${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>`<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">${d}</div>`).join('')}
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Lun</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Mar</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Mié</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Jue</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Vie</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Sáb</div>
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">Dom</div>
     </div>
-    <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+    <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;min-height:500px"></div>
     <!-- Legend -->
     <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:2px;background:rgba(60,255,160,.2);border:1px solid var(--green)"></div><span style="font-size:11px;color:var(--muted)">Completado</span></div>
