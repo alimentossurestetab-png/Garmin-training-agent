@@ -1,5 +1,4 @@
-- name: Verify script
-        run: head -5 garmin_sync.py
+name: Garmin Training Sync
 
 on:
   schedule:
@@ -20,8 +19,8 @@ jobs:
       - name: Install dependencies
         run: pip install --no-cache-dir garminconnect requests supabase
 
-      - name: Show file contents
-        run: cat garmin_sync.py
+      - name: Verify script
+        run: head -10 garmin_sync.py
 
       - name: Run sync
         env:
@@ -31,4 +30,3 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python garmin_sync.py
-        
