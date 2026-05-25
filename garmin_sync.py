@@ -105,9 +105,19 @@ def sync_activity(activity, garmin_client, supabase):
     else:
         print(f"  ⚠ Insert sin datos de retorno para {garmin_id}")
 
-    # Notificar a Make.com (incluye id para vincular análisis)
+    # Notificar a Make.com — convertir paces a mm:ss para que Claude los lea correctamente
+    def fmt_pace(dec):
+        if not dec: return None
+        m = int(dec)
+        s = round((dec - m) * 60)
+        return f"{m}:{s:02d}"
+
+    webhook_payload = {**row}
+    webhook_payload["pace_avg_fmt"]   = fmt_pace(row.get("pace_avg"))
+    webhook_payload["pace_mejor_fmt"] = fmt_pace(row.get("pace_mejor"))
+
     try:
-        resp = requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
+        resp = requests.post(MAKE_WEBHOOK_URL, json=webhook_payload, timeout=30)
         print(f"  ✓ Webhook Make.com → {resp.status_code}")
     except requests.RequestException as e:
         print(f"  ⚠ Error webhook: {e}")
