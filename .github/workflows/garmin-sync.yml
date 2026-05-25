@@ -1,6 +1,5 @@
 - name: Verify script
         run: head -5 garmin_sync.py
-name: Garmin Training Sync
 
 on:
   schedule:
