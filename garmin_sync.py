@@ -82,11 +82,14 @@ def sync_activity(activity, garmin_client, supabase):
         "splits_json":                 splits_data,
     }
 
-    supabase.table("actividades").insert(row).execute()
-    print(f"✓ {sport} {row['distancia_km']}km | pace {pace_avg} min/km | FC {row['fc_avg']} | cadencia {cadencia} | duracion {duracion}s")
+result = supabase.table("actividades").insert(row).execute()
+print(f"✓ {sport}...")
 
-    requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
-    print("✓ Enviado a Make.com")
+# Agregar el id de Supabase al payload
+if result.data and len(result.data) > 0:
+    row["id"] = result.data[0]["id"]
+
+requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
 
 def main():
     print("Conectando a Garmin Connect...")
