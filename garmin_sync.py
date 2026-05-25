@@ -4,93 +4,115 @@ from datetime import datetime, timedelta, timezone
 from garminconnect import Garmin
 from supabase import create_client
 
+# ── Config ────────────────────────────────────────────────────────────────────
 GARMIN_EMAIL     = os.environ["GARMIN_EMAIL"]
 GARMIN_PASSWORD  = os.environ["GARMIN_PASSWORD"]
 MAKE_WEBHOOK_URL = os.environ["MAKE_WEBHOOK_URL"]
 SUPABASE_URL     = os.environ["SUPABASE_URL"]
 SUPABASE_KEY     = os.environ["SUPABASE_KEY"]
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def ms_to_pace(speed_ms):
-    if not speed_ms or float(speed_ms) == 0:
+    """Convierte m/s a min/km. Retorna None si el valor es inválido."""
+    try:
+        s = float(speed_ms)
+        return round((1000 / s) / 60, 2) if s > 0 else None
+    except (TypeError, ValueError, ZeroDivisionError):
         return None
-    return round((1000 / float(speed_ms)) / 60, 2)
 
-def sync_activity(activity, garmin_client, supabase):
-    activity_id = str(activity.get("activityId", ""))
+def safe_float(value, decimals=None):
+    """Convierte a float de forma segura, retorna None si falla."""
+    try:
+        v = float(value)
+        return round(v, decimals) if decimals is not None else v
+    except (TypeError, ValueError):
+        return None
 
-    existing = supabase.table("actividades").select("id").eq("garmin_id", activity_id).execute()
-    if existing.data:
-        print(f"Actividad {activity_id} ya existe, saltando.")
-        return
+def safe_int(value):
+    """Convierte a int de forma segura, retorna None si falla."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
 
-    splits = garmin_client.get_activity_splits(activity_id)
-    sport  = activity.get("activityType", {}).get("typeKey", "running")
+# ── Core ──────────────────────────────────────────────────────────────────────
+def build_splits(splits_raw):
+    """Extrae splits por km desde la respuesta de Garmin."""
+    if not splits_raw or "lapDTOs" not in splits_raw:
+        return []
+    return [
+        {
+            "km":        lap.get("lapIndex"),
+            "pace":      ms_to_pace(lap.get("averageSpeed")),
+            "fc_avg":    lap.get("averageHR"),
+            "distancia": round((lap.get("distance") or 0) / 1000, 2),
+        }
+        for lap in splits_raw["lapDTOs"]
+    ]
 
-    # Duracion
-    duracion = activity.get("duration")
-    if duracion:
-        duracion = int(float(duracion))
-
-    # Pace
-    pace_avg   = ms_to_pace(activity.get("averageSpeed"))
-    pace_mejor = ms_to_pace(activity.get("maxSpeed"))
-
-    # Cadencia (Garmin manda pasos totales, dividir entre 2)
+def build_row(activity, splits_data):
+    """Construye el dict a insertar en Supabase."""
     cadencia_raw = activity.get("averageRunningCadenceInStepsPerMinute")
-    cadencia = round(float(cadencia_raw) / 2, 1) if cadencia_raw else None
-
-    # Zonas FC — Garmin las manda como hrTimeInZone_1..5
-    zona = lambda i: activity.get(f"hrTimeInZone_{i}")
-
-    # Splits por km
-    splits_data = []
-    if splits and "lapDTOs" in splits:
-        for lap in splits["lapDTOs"]:
-            splits_data.append({
-                "km":        lap.get("lapIndex"),
-                "pace":      ms_to_pace(lap.get("averageSpeed", 0)),
-                "fc_avg":    lap.get("averageHR"),
-                "distancia": round(lap.get("distance", 0) / 1000, 2)
-            })
-
-    row = {
-        "garmin_id":                   activity_id,
+    return {
+        "garmin_id":                   str(activity.get("activityId", "")),
         "fecha":                       activity.get("startTimeGMT"),
-        "tipo":                        sport,
-        "distancia_km":                round(activity.get("distance", 0) / 1000, 2),
-        "duracion_seg":                duracion,
-        "pace_avg":                    pace_avg,
-        "pace_mejor":                  pace_mejor,
-        "fc_avg":                      activity.get("averageHR"),
-        "fc_max":                      activity.get("maxHR"),
-        "calorias":                    activity.get("calories"),
-        "elevacion_m":                 activity.get("elevationGain"),
-        "cadencia_avg":                cadencia,
-        "vo2max":                      activity.get("vO2MaxValue"),
-        "training_load":               activity.get("activityTrainingLoad"),
-        "training_effect_aerobico":    activity.get("aerobicTrainingEffect"),
-        "training_effect_anaerobico":  activity.get("anaerobicTrainingEffect"),
-        "recovery_time_h":             activity.get("recoveryTime"),
+        "tipo":                        activity.get("activityType", {}).get("typeKey", "running"),
+        "distancia_km":                round((activity.get("distance") or 0) / 1000, 2),
+        "duracion_seg":                safe_int(activity.get("duration")),
+        "pace_avg":                    ms_to_pace(activity.get("averageSpeed")),
+        "pace_mejor":                  ms_to_pace(activity.get("maxSpeed")),
+        "fc_avg":                      safe_float(activity.get("averageHR")),
+        "fc_max":                      safe_float(activity.get("maxHR")),
+        "calorias":                    safe_float(activity.get("calories")),
+        "elevacion_m":                 safe_float(activity.get("elevationGain"), 1),
+        "cadencia_avg":                round(float(cadencia_raw) / 2, 1) if cadencia_raw else None,
+        "vo2max":                      safe_float(activity.get("vO2MaxValue")),
+        "training_load":               safe_float(activity.get("activityTrainingLoad"), 1),
+        "training_effect_aerobico":    safe_float(activity.get("aerobicTrainingEffect"), 1),
+        "training_effect_anaerobico":  safe_float(activity.get("anaerobicTrainingEffect"), 1),
+        "recovery_time_h":             safe_float(activity.get("recoveryTime"), 1),
         "training_status":             activity.get("trainingStatus"),
         "hrv_status":                  activity.get("hrvStatus"),
-        "body_battery_inicio":         activity.get("differenceBodyBattery"),
-        "tiempo_zona1_seg":            zona(1),
-        "tiempo_zona2_seg":            zona(2),
-        "tiempo_zona3_seg":            zona(3),
-        "tiempo_zona4_seg":            zona(4),
-        "tiempo_zona5_seg":            zona(5),
+        "body_battery_inicio":         safe_float(activity.get("differenceBodyBattery")),
+        "tiempo_zona1_seg":            activity.get("hrTimeInZone_1"),
+        "tiempo_zona2_seg":            activity.get("hrTimeInZone_2"),
+        "tiempo_zona3_seg":            activity.get("hrTimeInZone_3"),
+        "tiempo_zona4_seg":            activity.get("hrTimeInZone_4"),
+        "tiempo_zona5_seg":            activity.get("hrTimeInZone_5"),
         "splits_json":                 splits_data,
     }
 
-result = supabase.table("actividades").insert(row).execute()
-print(f"✓ {sport}...")
+def sync_activity(activity, garmin_client, supabase):
+    """Sincroniza una actividad: verifica duplicado, inserta y notifica a Make."""
+    garmin_id = str(activity.get("activityId", ""))
 
-# Agregar el id de Supabase al payload
-if result.data and len(result.data) > 0:
-    row["id"] = result.data[0]["id"]
+    # Skip si ya existe
+    if supabase.table("actividades").select("id").eq("garmin_id", garmin_id).execute().data:
+        print(f"  → {garmin_id} ya existe, saltando.")
+        return
 
-requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
+    splits_raw  = garmin_client.get_activity_splits(garmin_id)
+    splits_data = build_splits(splits_raw)
+    row         = build_row(activity, splits_data)
 
+    # Insertar en Supabase y recuperar el id generado
+    result = supabase.table("actividades").insert(row).execute()
+    if result.data:
+        row["id"] = result.data[0]["id"]
+        print(f"  ✓ Guardada: {row['tipo']} {row['distancia_km']}km "
+              f"| pace {row['pace_avg']} | FC {row['fc_avg']} "
+              f"| load {row['training_load']}")
+    else:
+        print(f"  ⚠ Insert sin datos de retorno para {garmin_id}")
+
+    # Notificar a Make.com (incluye id para vincular análisis)
+    try:
+        resp = requests.post(MAKE_WEBHOOK_URL, json=row, timeout=30)
+        print(f"  ✓ Webhook Make.com → {resp.status_code}")
+    except requests.RequestException as e:
+        print(f"  ⚠ Error webhook: {e}")
+
+# ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     print("Conectando a Garmin Connect...")
     garmin = Garmin(GARMIN_EMAIL, GARMIN_PASSWORD)
@@ -102,6 +124,7 @@ def main():
     end   = datetime.now(timezone.utc)
     start = end - timedelta(hours=25)
 
+    print(f"Buscando actividades: {start.strftime('%Y-%m-%d')} → {end.strftime('%Y-%m-%d')}")
     activities = garmin.get_activities_by_date(
         start.strftime("%Y-%m-%d"),
         end.strftime("%Y-%m-%d"),
@@ -109,12 +132,14 @@ def main():
     )
 
     if not activities:
-        print("No hay actividades nuevas.")
+        print("Sin actividades nuevas.")
         return
 
-    print(f"Encontradas {len(activities)} actividades, procesando...")
+    print(f"Encontradas {len(activities)} actividad(es), procesando...")
     for activity in activities:
         sync_activity(activity, garmin, supabase)
+
+    print("Sync completo.")
 
 if __name__ == "__main__":
     main()
