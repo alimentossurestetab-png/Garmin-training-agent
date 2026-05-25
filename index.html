@@ -204,6 +204,31 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
     <div class="plan-weeks" id="planWeeks"></div>
   </div>
 
+
+  <!-- CALENDARIO -->
+  <div class="card" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="card-title">Calendario de Entrenamiento</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div onclick="prevMonth()" style="cursor:pointer;color:var(--muted);font-size:18px;padding:2px 8px;border:1px solid var(--border);border-radius:6px">‹</div>
+        <div id="calMonthLabel" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--text);min-width:140px;text-align:center"></div>
+        <div onclick="nextMonth()" style="cursor:pointer;color:var(--muted);font-size:18px;padding:2px 8px;border:1px solid var(--border);border-radius:6px">›</div>
+      </div>
+    </div>
+    <!-- Day headers -->
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+      ${['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map(d=>`<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-align:center;padding:4px">${d}</div>`).join('')}
+    </div>
+    <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:2px;background:rgba(60,255,160,.2);border:1px solid var(--green)"></div><span style="font-size:11px;color:var(--muted)">Completado</span></div>
+      <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:2px;background:rgba(60,170,255,.15);border:1px solid var(--accent3);border-style:dashed"></div><span style="font-size:11px;color:var(--muted)">Planeado</span></div>
+      <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:50%;background:var(--accent)"></div><span style="font-size:11px;color:var(--muted)">Hoy</span></div>
+      <div style="display:flex;align-items:center;gap:6px"><div style="width:10px;height:10px;border-radius:2px;background:rgba(255,77,77,.2);border:1px solid var(--accent2)"></div><span style="font-size:11px;color:var(--muted)">Carrera</span></div>
+    </div>
+  </div>
+
   <!-- LAST ACTIVITY + SPLITS -->
   <div class="grid-3">
     <div class="card">
@@ -689,6 +714,8 @@ async function loadDashboard() {
   document.getElementById('weekKm').textContent = weekKm.toFixed(1);
   document.getElementById('weekKmDelta').textContent = weekActs.length+' actividad'+(weekActs.length!==1?'es':'')+' esta semana';
 
+  calActivities = activities;
+  if (!cachedPlanWorkouts) loadPlanWorkouts(); else renderCalendar();
   if (!selectedId) renderActivity(latest);
   renderHistoryTable(activities);
   renderVolumeChart(sorted);
@@ -697,9 +724,170 @@ async function loadDashboard() {
   if (!selectedId) loadAnalysis();
 }
 
+
+// ── CALENDAR ──────────────────────────────────
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calActivities = [];
+
+const PLANNED_WORKOUTS = [
+  // Format: { date: 'YYYY-MM-DD', type: 'Fácil|Tempo|Long Run|Descanso|Carrera', km: N, desc: '...' }
+  // These get populated based on race date and current phase
+];
+
+let cachedPlanWorkouts = null;
+
+async function loadPlanWorkouts() {
+  try {
+    const semanas = await query('plan_entrenos', '?order=semana.asc');
+    const workouts = [];
+    if (semanas && semanas.length) {
+      semanas.forEach(s => {
+        let entrenos = s.entrenos;
+        if (typeof entrenos === 'string') {
+          try { entrenos = JSON.parse(entrenos); } catch(e) { entrenos = []; }
+        }
+        if (Array.isArray(entrenos)) {
+          entrenos.forEach(e => {
+            workouts.push({
+              date: e.fecha,
+              type: e.tipo,
+              km: e.km,
+              desc: e.descripcion,
+              pace: e.pace_objetivo,
+              completado: e.completado
+            });
+          });
+        }
+      });
+    }
+    cachedPlanWorkouts = workouts;
+    renderCalendar();
+  } catch(err) {
+    console.error('Error cargando plan:', err);
+    cachedPlanWorkouts = [];
+  }
+}
+
+function getPlannedWorkouts() {
+  return cachedPlanWorkouts || [];
+}
+
+function typeColor(type) {
+  const colors = {
+    'Fácil': { bg:'rgba(60,255,160,.15)', border:'var(--green)', text:'var(--green)' },
+    'Tempo': { bg:'rgba(232,255,60,.12)', border:'var(--accent)', text:'var(--accent)' },
+    'Long Run': { bg:'rgba(60,170,255,.15)', border:'var(--accent3)', text:'var(--accent3)' },
+    'Intervalos': { bg:'rgba(255,153,64,.15)', border:'#ff9940', text:'#ff9940' },
+    'Carrera': { bg:'rgba(255,77,77,.2)', border:'var(--accent2)', text:'var(--accent2)' },
+    'Descanso': { bg:'rgba(80,80,80,.15)', border:'#444', text:'#666' },
+  };
+  return colors[type] || { bg:'rgba(60,170,255,.1)', border:'#444', text:'#888' };
+}
+
+function renderCalendar() {
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('calMonthLabel').textContent = monthNames[calMonth] + ' ' + calYear;
+
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay = new Date(calYear, calMonth+1, 0);
+  const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay()-1;
+  const today = new Date().toISOString().slice(0,10);
+
+  // Build activity map for this month
+  const actMap = {};
+  calActivities.forEach(a => {
+    const d = a.fecha.slice(0,10);
+    if (!actMap[d]) actMap[d] = [];
+    actMap[d].push(a);
+  });
+
+  // Build planned map
+  const planned = getPlannedWorkouts();
+  const planMap = {};
+  planned.forEach(p => {
+    if (!planMap[p.date]) planMap[p.date] = [];
+    planMap[p.date].push(p);
+  });
+
+  // Race dates
+  const races = getRaces();
+  const raceDates = new Set(races.map(r => r.date));
+
+  let cells = '';
+
+  // Empty cells before first day
+  for (let i = 0; i < startDow; i++) {
+    cells += '<div style="min-height:80px"></div>';
+  }
+
+  // Day cells
+  for (let day = 1; day <= lastDay.getDate(); day++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday = dateStr === today;
+    const isPast = dateStr < today;
+    const acts = actMap[dateStr] || [];
+    const plans = planMap[dateStr] || [];
+    const isRace = raceDates.has(dateStr);
+
+    let cellBg = 'var(--surface2)';
+    let cellBorder = 'var(--border)';
+    if (isToday) { cellBg = 'rgba(232,255,60,.05)'; cellBorder = 'var(--accent)'; }
+    else if (isRace) { cellBg = 'rgba(255,77,77,.08)'; cellBorder = 'var(--accent2)'; }
+
+    let content = '';
+
+    // Completed activities
+    acts.forEach(a => {
+      const te = a.training_effect_aerobico;
+      const runType = te >= 4 ? 'Tempo' : te >= 3 ? 'Fácil' : 'Fácil';
+      const c = typeColor(a.training_load > 130 ? 'Long Run' : a.pace_avg < 5.5 ? 'Tempo' : 'Fácil');
+      content += `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:4px;padding:3px 5px;margin-bottom:2px;cursor:pointer" onclick="selectActivity('${a.garmin_id}')">
+        <div style="font-family:'DM Mono',monospace;font-size:9px;color:${c.text};font-weight:500">${a.distancia_km}km · ${p(a.pace_avg)}</div>
+        <div style="font-size:9px;color:#888">${a.training_load?'Load '+Math.round(a.training_load):''}</div>
+      </div>`;
+    });
+
+    // Planned (only future)
+    if (!isPast || isToday) {
+      plans.forEach(pl => {
+        if (acts.length > 0) return; // already ran
+        const c = typeColor(pl.type);
+        content += `<div style="background:${c.bg};border:1px dashed ${c.border};border-radius:4px;padding:3px 5px;margin-bottom:2px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:${c.text}">${pl.type}${pl.km>0?' · '+pl.km+'km':''}</div>
+          <div style="font-size:9px;color:#555">${pl.desc}</div>
+        </div>`;
+      });
+    }
+
+    cells += `<div style="min-height:80px;background:${cellBg};border:1px solid ${cellBorder};border-radius:6px;padding:5px;position:relative">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;color:${isToday?'var(--accent)':isPast&&acts.length===0?'#333':'var(--muted)'};margin-bottom:3px;display:flex;justify-content:space-between;align-items:center">
+        <span>${day}</span>
+        ${isToday?'<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);display:block"></span>':''}
+      </div>
+      ${content}
+    </div>`;
+  }
+
+  document.getElementById('calGrid').innerHTML = cells;
+}
+
+function prevMonth() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function nextMonth() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
 updateCountdown();
 setInterval(updateCountdown, 60000);
 loadDashboard();
+loadPlanWorkouts();
 setInterval(loadDashboard, 300000);
 </script>
 </body>
