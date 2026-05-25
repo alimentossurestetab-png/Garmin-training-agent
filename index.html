@@ -469,6 +469,7 @@ function renderActivity(a) {
     <div class="activity-stats">
       <div class="act-stat"><div class="act-stat-val">${p(a.pace_avg)}</div><div class="act-stat-lbl">Pace avg</div></div>
       <div class="act-stat"><div class="act-stat-val">${a.fc_avg||'—'}</div><div class="act-stat-lbl">FC avg</div></div>
+      <div class="act-stat"><div class="act-stat-val">${a.fc_max||'—'}</div><div class="act-stat-lbl">FC máx</div></div>
       <div class="act-stat"><div class="act-stat-val">${a.duracion_seg?Math.floor(a.duracion_seg/60)+'min':'—'}</div><div class="act-stat-lbl">Duración</div></div>
       <div class="act-stat"><div class="act-stat-val">${a.cadencia_avg||'—'}</div><div class="act-stat-lbl">Cadencia</div></div>
       <div class="act-stat"><div class="act-stat-val">${a.training_load?Math.round(a.training_load):'—'}</div><div class="act-stat-lbl">Training Load</div></div>
