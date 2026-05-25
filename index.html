@@ -474,6 +474,20 @@ function renderActivity(a) {
       <div class="act-stat"><div class="act-stat-val">${a.cadencia_avg||'—'}</div><div class="act-stat-lbl">Cadencia</div></div>
       <div class="act-stat"><div class="act-stat-val">${a.training_load?Math.round(a.training_load):'—'}</div><div class="act-stat-lbl">Training Load</div></div>
       <div class="act-stat"><div class="act-stat-val">${a.vo2max||'—'}</div><div class="act-stat-lbl">VO2 Max</div></div>
+      <div class="act-stat">
+        <div class="act-stat-val" style="font-size:20px">${a.training_effect_aerobico?parseFloat(a.training_effect_aerobico).toFixed(1):'—'}</div>
+        <div class="act-stat-lbl">TE Aeróbico</div>
+        <div style="font-size:10px;color:${a.training_effect_aerobico>=4?'var(--green)':a.training_effect_aerobico>=3?'var(--accent)':'var(--muted)'}">
+          ${a.training_effect_aerobico?(a.training_effect_aerobico>=4.5?'Muy alto':a.training_effect_aerobico>=3.5?'Alto':a.training_effect_aerobico>=2.5?'Moderado':a.training_effect_aerobico>=1?'Bajo':'Mínimo'):''}
+        </div>
+      </div>
+      <div class="act-stat">
+        <div class="act-stat-val" style="font-size:20px">${a.training_effect_anaerobico?parseFloat(a.training_effect_anaerobico).toFixed(1):'—'}</div>
+        <div class="act-stat-lbl">TE Anaeróbico</div>
+        <div style="font-size:10px;color:${a.training_effect_anaerobico>=4?'var(--accent2)':a.training_effect_anaerobico>=3?'var(--accent)':'var(--muted)'}">
+          ${a.training_effect_anaerobico?(a.training_effect_anaerobico>=4.5?'Muy alto':a.training_effect_anaerobico>=3.5?'Alto':a.training_effect_anaerobico>=2.5?'Moderado':a.training_effect_anaerobico>=1?'Bajo':'Mínimo'):''}
+        </div>
+      </div>
     </div>
     ${renderZones(a)}`;
   renderSplits(a);
