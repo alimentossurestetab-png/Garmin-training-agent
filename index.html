@@ -1487,8 +1487,7 @@ setInterval(loadDashboard, 300000);
       lines.push('Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70));
     });
 
-    return lines.join('
-');
+    return lines.join('\n');
   }
 
   window.sendChat = async function() {
@@ -1524,9 +1523,7 @@ setInterval(loadDashboard, 300000);
         body: JSON.stringify({
           model: 'claude-sonnet-4-5',
           max_tokens: 800,
-          system: 'Eres un coach de running experto. Responde conciso y practico, maximo 200 palabras, con datos especificos del corredor.
-
-' + context,
+          system: 'Eres un coach de running experto. Responde conciso y practico, maximo 200 palabras, con datos especificos del corredor.\n\n' + context,
           messages: chatHistory.slice(-8)
         })
       });
