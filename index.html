@@ -965,81 +965,118 @@ function renderWeeklyZones(activities) {
 
 
 // ── RUNNING DYNAMICS ──────────────────────────
-function renderRunningDynamics(activity) {
-  const gct = activity.ground_contact_time;
-  const vo = activity.vertical_oscillation;
-  const sl = activity.stride_length;
-  const vr = activity.vertical_ratio;
-  const power = activity.avg_power;
-
-  if (!gct && !vo && !sl) {
-    document.getElementById('runningDynamicsContent').innerHTML = 
-      '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de Running Dynamics para este entreno.<br>Disponibles en próximas actividades.</div>';
+async function renderRunningDynamics(activity) {
+  const container = document.getElementById('runningDynamicsContent');
+  
+  if (!activity.ground_contact_time && !activity.vertical_oscillation && !activity.stride_length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de Running Dynamics para este entreno.</div>';
     return;
   }
 
-  // Reference ranges for recreational runners targeting sub-2h HM
-  // GCT: elite < 200ms, good < 240ms, ok < 270ms, improve > 270ms
-  // VO: elite < 6cm, good < 8cm, ok < 10cm, improve > 10cm  
-  // VR: elite < 7%, good < 8.5%, ok < 10%, improve > 10%
-  // SL: depends on pace — at 5:41/km (2.93 m/s), ideal ~1.1-1.2m
+  // Fetch last 30 days for personal baseline
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const history = await query('actividades', 
+    `?order=fecha.desc&limit=60&select=fecha,ground_contact_time,vertical_oscillation,stride_length,vertical_ratio,avg_power,distancia_km,tipo`
+  );
 
-  function rateGCT(v) {
-    if (!v) return null;
-    if (v < 220) return { label: 'Élite', color: 'var(--green)', tip: 'Excelente contacto con el suelo.' };
-    if (v < 250) return { label: 'Bueno', color: 'var(--accent3)', tip: 'Buen tiempo de contacto.' };
-    if (v < 270) return { label: 'Normal', color: 'var(--accent)', tip: 'Dentro del rango normal. Trabaja en fortalecer glúteos y core.' };
-    return { label: 'Mejorar', color: 'var(--accent2)', tip: 'Tiempo alto. Enfócate en aumentar cadencia y reducir overstriding.' };
+  // Filter to activities with dynamics data (exclude current)
+  const withDynamics = (history || []).filter(a => 
+    a.garmin_id !== activity.garmin_id &&
+    a.ground_contact_time && a.vertical_oscillation
+  );
+
+  // Compute personal averages and bests
+  function personalStats(arr, field, lowerIsBetter) {
+    const vals = arr.map(a => parseFloat(a[field])).filter(v => !isNaN(v) && v > 0);
+    if (!vals.length) return null;
+    const avg = vals.reduce((s,v) => s+v, 0) / vals.length;
+    const best = lowerIsBetter ? Math.min(...vals) : Math.max(...vals);
+    return { avg: round2(avg), best: round2(best), count: vals.length };
   }
 
-  function rateVO(v) {
-    if (!v) return null;
-    if (v < 6.5) return { label: 'Élite', color: 'var(--green)', tip: 'Oscilación muy eficiente.' };
-    if (v < 8.5) return { label: 'Bueno', color: 'var(--accent3)', tip: 'Buena economía de carrera.' };
-    if (v < 10) return { label: 'Normal', color: 'var(--accent)', tip: 'Oscilación normal. Ejercicios de core ayudan a reducirla.' };
-    return { label: 'Mejorar', color: 'var(--accent2)', tip: 'Oscilación alta = energía desperdiciada. Trabaja postura y core.' };
+  function round2(v) { return Math.round(v * 10) / 10; }
+
+  const stats = {
+    gct: personalStats(withDynamics, 'ground_contact_time', true),
+    vo:  personalStats(withDynamics, 'vertical_oscillation', true),
+    sl:  personalStats(withDynamics, 'stride_length', false),
+    vr:  personalStats(withDynamics, 'vertical_ratio', true),
+  };
+
+  // Rate metric against personal average
+  function ratePersonal(current, stat, lowerIsBetter, threshold=0.03) {
+    if (!stat || !current) return { label: '—', color: 'var(--muted)', arrow: '' };
+    const pct = (current - stat.avg) / stat.avg;
+    const better = lowerIsBetter ? pct < -threshold : pct > threshold;
+    const worse  = lowerIsBetter ? pct > threshold  : pct < -threshold;
+    if (better) return { label: 'Mejorando', color: 'var(--green)', arrow: '↑' };
+    if (worse)  return { label: 'Empeorando', color: 'var(--accent2)', arrow: '↓' };
+    return { label: 'Estable', color: 'var(--accent)', arrow: '→' };
   }
 
-  function rateVR(v) {
-    if (!v) return null;
-    if (v < 7) return { label: 'Élite', color: 'var(--green)', tip: 'Ratio vertical excelente.' };
-    if (v < 8.5) return { label: 'Bueno', color: 'var(--accent3)', tip: 'Buen balance horizontal/vertical.' };
-    if (v < 10) return { label: 'Normal', color: 'var(--accent)', tip: 'Ratio aceptable para tu nivel.' };
-    return { label: 'Mejorar', color: 'var(--accent2)', tip: 'Alto ratio vertical. Revisa postura de carrera.' };
-  }
+  // Detect if this is a race
+  const isRace = parseFloat(activity.distancia_km) >= 18;
+  const raceLabel = isRace ? ' <span style="font-size:9px;padding:2px 6px;background:rgba(255,77,77,.15);border:1px solid var(--accent2);border-radius:10px;color:var(--accent2)">CARRERA</span>' : '';
 
-  const gctR = rateGCT(gct);
-  const voR = rateVO(vo);
-  const vrR = rateVR(vr);
+  const gctR = ratePersonal(activity.ground_contact_time, stats.gct, true);
+  const voR  = ratePersonal(activity.vertical_oscillation, stats.vo, true);
+  const vrR  = ratePersonal(activity.vertical_ratio, stats.vr, true);
+  const slR  = ratePersonal(activity.stride_length, stats.sl, false);
 
-  function metricRow(label, value, unit, rating, refRange) {
-    if (!value) return '';
+  function metricRow(label, current, unit, rating, stat, lowerIsBetter, note) {
+    if (!current) return '';
+    const val = parseFloat(current);
+    const diffVsAvg = stat ? ((val - stat.avg) / stat.avg * 100).toFixed(1) : null;
+    const sign = diffVsAvg > 0 ? '+' : '';
+    const diffColor = (lowerIsBetter ? diffVsAvg < 0 : diffVsAvg > 0) ? 'var(--green)' : 'var(--accent2)';
+
     return `
-      <div style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div style="font-size:12px;color:var(--text)">${label}</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${rating.color}">${value}${unit}</div>
-            <div style="padding:2px 8px;border-radius:12px;font-size:10px;font-family:'DM Mono',monospace;background:${rating.color}22;color:${rating.color};border:1px solid ${rating.color}44">${rating.label}</div>
+    <div style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #1a1a1a">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px">${label}</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <span style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--text)">${unit === 'm' ? val.toFixed(2) : Math.round(val*10)/10}${unit}</span>
+            <span style="font-size:18px;color:${rating.color}">${rating.arrow}</span>
+            <span style="font-size:11px;font-family:'DM Mono',monospace;padding:2px 8px;border-radius:12px;background:${rating.color}18;color:${rating.color};border:1px solid ${rating.color}33">${rating.label}</span>
           </div>
         </div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${refRange}</div>
-        <div style="font-size:11px;color:#888">${rating.tip}</div>
-      </div>`;
+        ${stat ? `<div style="text-align:right">
+          <div style="font-size:10px;color:var(--muted)">vs tu promedio</div>
+          <div style="font-family:'DM Mono',monospace;font-size:13px;color:${diffColor}">${sign}${diffVsAvg}%</div>
+        </div>` : ''}
+      </div>
+      ${stat ? `<div style="display:flex;gap:16px;margin-top:4px">
+        <div style="font-size:10px;color:var(--muted)">Tu promedio: <span style="color:#888">${stat.avg}${unit}</span></div>
+        <div style="font-size:10px;color:var(--muted)">Tu mejor: <span style="color:var(--green)">${stat.best}${unit}</span></div>
+        <div style="font-size:10px;color:var(--muted)">(${stat.count} entrenos)</div>
+      </div>` : ''}
+      ${note ? `<div style="font-size:11px;color:#666;margin-top:4px">${note}</div>` : ''}
+    </div>`;
   }
 
-  document.getElementById('runningDynamicsContent').innerHTML = 
-    metricRow('Ground Contact Time', gct ? Math.round(gct) : null, 'ms', gctR, 'Referencia: < 220ms élite · < 250ms bueno · < 270ms normal') +
-    metricRow('Vertical Oscillation', vo ? parseFloat(vo).toFixed(1) : null, 'cm', voR, 'Referencia: < 6.5cm élite · < 8.5cm bueno · < 10cm normal') +
-    metricRow('Vertical Ratio', vr ? parseFloat(vr).toFixed(1) : null, '%', vrR, 'Referencia: < 7% élite · < 8.5% bueno · < 10% normal') +
-    (sl ? `<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border)">
-      <div style="font-size:12px;color:var(--text)">Longitud de zancada</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--accent3)">${parseFloat(sl).toFixed(2)}m</div>
-    </div>` : '') +
-    (power ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-      <div style="font-size:12px;color:var(--text)">Potencia promedio</div>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#a855f7">${Math.round(power)}W</div>
-    </div>` : '');
+  // Contextual note based on activity type
+  const contextNote = isRace 
+    ? '🏁 Datos de carrera — referencia de máximo rendimiento para comparar futuros eventos.'
+    : parseFloat(activity.pace_avg) > 5.8
+    ? '💡 Rodaje suave — GCT y VO más altos son normales a menor intensidad.'
+    : '';
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px;font-size:11px;color:#666;font-family:'DM Mono',monospace">
+      Comparado contra tu historial personal${withDynamics.length ? ' (' + withDynamics.length + ' entrenos)' : ''}${raceLabel}
+    </div>
+    ${metricRow('Ground Contact Time', activity.ground_contact_time, 'ms', gctR, stats.gct, true, 'Menor es mejor — menos tiempo en suelo = más eficiencia')}
+    ${metricRow('Vertical Oscillation', activity.vertical_oscillation, 'cm', voR, stats.vo, true, 'Menor es mejor — menos rebote = más energía horizontal')}
+    ${metricRow('Vertical Ratio', activity.vertical_ratio, '%', vrR, stats.vr, true, 'Menor es mejor — balance entre movimiento vertical y horizontal')}
+    ${metricRow('Stride Length', activity.stride_length, 'm', slR, stats.sl, false, 'Mayor es mejor a igual esfuerzo — zancada más eficiente')}
+    ${activity.avg_power ? `<div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px">
+      <div style="font-size:11px;color:var(--muted)">Potencia promedio</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#a855f7">${Math.round(activity.avg_power)}W</div>
+    </div>` : ''}
+    ${contextNote ? `<div style="margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;font-size:11px;color:#888">${contextNote}</div>` : ''}
+  `;
 }
 
 // ── HRV TREND ─────────────────────────────────
@@ -1294,5 +1331,209 @@ loadDashboard();
 loadPlanWorkouts();
 setInterval(loadDashboard, 300000);
 </script>
+
+<!-- CHAT BUTTON -->
+<div id="chatBtn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 20px rgba(232,255,60,.3);z-index:500;transition:transform .2s">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+</div>
+
+<!-- CHAT PANEL -->
+<div id="chatPanel" style="display:none;position:fixed;bottom:90px;right:24px;width:380px;max-width:calc(100vw - 32px);background:#111;border:1px solid #333;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);z-index:500;flex-direction:column;overflow:hidden">
+  
+  <!-- Header -->
+  <div style="padding:16px 20px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:center;background:#0f0f0f">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--accent)">COACH IA</div>
+      <div style="font-size:10px;color:#555;font-family:'DM Mono',monospace">Pregúntame sobre tus entrenos</div>
+    </div>
+    <div onclick="toggleChat()" style="cursor:pointer;color:#555;font-size:18px;padding:4px 8px">✕</div>
+  </div>
+
+  <!-- Messages -->
+  <div id="chatMessages" style="height:320px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px">
+    <div style="background:#1a1a1a;border-radius:10px;padding:10px 14px;font-size:13px;color:#aaa;line-height:1.5;border:1px solid #222">
+      Hola 👋 Soy tu coach IA. Tengo acceso a todos tus entrenamientos y tu plan hacia Villahermosa. ¿En qué te puedo ayudar?
+    </div>
+  </div>
+
+  <!-- Suggestions -->
+  <div id="chatSuggestions" style="padding:0 16px 10px;display:flex;flex-wrap:wrap;gap:6px">
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Cómo voy esta semana?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Estoy listo para Villahermosa?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Cuál fue mi mejor semana?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Progresé en VO2Max?</div>
+  </div>
+
+  <!-- Input -->
+  <div style="padding:12px 16px;border-top:1px solid #222;display:flex;gap:8px;background:#0f0f0f">
+    <input id="chatInput" 
+      placeholder="Pregunta algo sobre tus entrenos..." 
+      onkeydown="if(event.key==='Enter')sendChat()"
+      style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Sans',sans-serif">
+    <button onclick="sendChat()" id="chatSendBtn"
+      style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;white-space:nowrap">
+      Enviar
+    </button>
+  </div>
+</div>
+
+<script>
+// ── CHAT ──────────────────────────────────────
+let chatOpen = false;
+let chatHistory = [];
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chatPanel').style.display = chatOpen ? 'flex' : 'none';
+  document.getElementById('chatBtn').style.transform = chatOpen ? 'scale(0.9)' : 'scale(1)';
+  if (chatOpen) document.getElementById('chatInput').focus();
+}
+
+function sendSuggestion(el) {
+  document.getElementById('chatInput').value = el.textContent;
+  document.getElementById('chatSuggestions').style.display = 'none';
+  sendChat();
+}
+
+function addMessage(text, isUser) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.style.cssText = isUser
+    ? 'background:rgba(232,255,60,.1);border:1px solid rgba(232,255,60,.2);border-radius:10px;padding:10px 14px;font-size:13px;color:#e8ff3c;line-height:1.5;align-self:flex-end;max-width:90%'
+    : 'background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#ccc;line-height:1.6;max-width:95%';
+  
+  if (!isUser) {
+    // Format markdown-like
+    let html = text
+      .split('**').map((p,i) => i%2===1 ? '<strong style="color:#f0f0f0">'+p+'</strong>' : p).join('')
+      .split('
+
+').join('<br><br>')
+      .split('
+- ').join('<br>• ')
+      .split('
+').join('<br>');
+    div.innerHTML = html;
+  } else {
+    div.textContent = text;
+  }
+  
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function buildContext() {
+  // Fetch last 30 activities for context
+  const acts = await query('actividades', '?order=fecha.desc&limit=30');
+  const analyses = await query('analisis', '?order=fecha.desc&limit=5');
+  const plan = await query('plan_entrenos', '?order=semana.asc');
+  
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - (today.getDay()===0?6:today.getDay()-1));
+  weekStart.setHours(0,0,0,0);
+  const weekActs = acts.filter(a => new Date(a.fecha) >= weekStart);
+
+  function dp(dec) {
+    if (!dec) return '—';
+    const m = Math.floor(dec), s = Math.round((dec-m)*60);
+    return m+':'+s.toString().padStart(2,'0');
+  }
+
+  const totalKm = acts.reduce((s,a) => s+(parseFloat(a.distancia_km)||0), 0);
+  const weekKm = weekActs.reduce((s,a) => s+(parseFloat(a.distancia_km)||0), 0);
+  const latest = acts[0];
+
+  let context = `CONTEXTO DEL CORREDOR:
+- Threshold: 4:27/km a 171bpm
+- Z2 real: 5:45-6:10/km a 138-148bpm
+- Entrena: lunes, jueves, viernes y sábado
+- Próxima carrera: Medio Maratón Villahermosa, 28 junio 2026
+- Meta: 1:45-1:48 (con calor posiblemente 1:50-1:52)
+- Ya corrió: Rock n Roll San Diego Half el 31 mayo 2026
+
+ESTADÍSTICAS GENERALES:
+- Total km acumulados: ${totalKm.toFixed(1)}km en ${acts.length} carreras
+- VO2Max actual: ${latest?.vo2max || '—'}
+- Km esta semana: ${weekKm.toFixed(1)}km en ${weekActs.length} sesiones
+
+ÚLTIMOS 10 ENTRENAMIENTOS:
+${acts.slice(0,10).map(a => 
+  `- ${a.fecha?.slice(0,10)}: ${a.distancia_km}km | pace ${dp(a.pace_avg)} | FC ${a.fc_avg||'—'} | load ${a.training_load?Math.round(a.training_load):'—'}`
+).join('
+')}
+
+ÚLTIMO ANÁLISIS DE CLAUDE:
+${analyses[0]?.resumen?.slice(0,500) || 'Sin análisis reciente'}
+
+PLAN ACTIVO (semanas):
+${plan.map(s => `- Semana ${s.semana} (${s.fecha_inicio} a ${s.fecha_fin}): ${s.objetivo_semana?.slice(0,80)}`).join('
+')}`;
+
+  return context;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const question = input.value.trim();
+  if (!question) return;
+
+  input.value = '';
+  document.getElementById('chatSuggestions').style.display = 'none';
+  addMessage(question, true);
+
+  // Loading indicator
+  const loadingDiv = addMessage('...', false);
+  loadingDiv.style.color = '#555';
+  
+  const sendBtn = document.getElementById('chatSendBtn');
+  sendBtn.disabled = true;
+  sendBtn.textContent = '...';
+
+  try {
+    const context = await buildContext();
+    
+    chatHistory.push({ role: 'user', content: question });
+    
+    const systemPrompt = `Eres un coach de running experto y personal. Tienes acceso completo a los datos de entrenamiento del corredor. Responde de forma concisa, práctica y personalizada basándote en los datos reales. No repitas el contexto, ve directo al punto. Usa datos específicos cuando sea relevante. Máximo 200 palabras por respuesta.
+
+${context}`;
+
+    const messages = chatHistory.length > 1 
+      ? chatHistory 
+      : [{ role: 'user', content: question }];
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: messages
+      })
+    });
+
+    const data = await response.json();
+    const reply = data?.content?.[0]?.text || 'No pude obtener respuesta.';
+    
+    chatHistory.push({ role: 'assistant', content: reply });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
+    loadingDiv.remove();
+    addMessage(reply, false);
+
+  } catch (err) {
+    loadingDiv.remove();
+    addMessage('Error al conectar con el coach. Intenta de nuevo.', false);
+    console.error(err);
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Enviar';
+  }
+}
+</script>
+
 </body>
 </html>
