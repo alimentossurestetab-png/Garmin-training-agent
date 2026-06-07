@@ -1431,11 +1431,7 @@ setInterval(loadDashboard, 300000);
       : 'background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#ccc;line-height:1.6;max-width:95%';
     if (!isUser) {
       var html = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f0f0f0">$1</strong>');
-      html = html.replace(/
-
-/g, '<br><br>').replace(/
-- /g, '<br>- ').replace(/
-/g, '<br>');
+      html = html.replace(/\n\n/g, '<br><br>').replace(/\n- /g, '<br>- ').replace(/\n/g, '<br>');
       div.innerHTML = html;
     } else {
       div.textContent = text;
