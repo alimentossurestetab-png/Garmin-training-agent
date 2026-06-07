@@ -204,7 +204,14 @@ def main():
 
     if not activities:
         print("Sin actividades nuevas.")
-        return
+    else:
+        print(f"Encontradas {len(activities)} actividad(es), procesando...")
+        for activity in activities:
+            sync_activity(activity, garmin, supabase)
+
+    # Siempre sincronizar training status
+    sync_training_status(garmin, supabase)
+    print("Sync completo.")
 
     print(f"Encontradas {len(activities)} actividad(es), procesando...")
     for activity in activities:
