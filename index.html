@@ -1562,7 +1562,7 @@ ${(acts||[]).slice(0,10).map(a =>
 ).join('\n')}
 
 PLAN VILLAHERMOSA:
-${(plan||[]).map(s => 'Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70)).join('\n')}
+${(plan||[]).map(s => 'Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70)).join('\n')}`;
 }
 
 async function sendChat() {
