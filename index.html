@@ -1559,12 +1559,10 @@ RESUMEN: ${totalKm.toFixed(1)}km totales | VO2Max: ${latest?.vo2max||'—'} | Es
 ÚLTIMOS 10 ENTRENOS:
 ${(acts||[]).slice(0,10).map(a =>
   a.fecha?.slice(0,10) + ': ' + a.distancia_km + 'km | ' + dp(a.pace_avg) + '/km | FC ' + (a.fc_avg||'—') + ' | Load ' + (a.training_load ? Math.round(a.training_load) : '—')
-).join('
-')}
+).join('\n')}
 
 PLAN VILLAHERMOSA:
-${(plan||[]).map(s => 'Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70)).join('
-')}`;
+${(plan||[]).map(s => 'Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70)).join('\n')}
 }
 
 async function sendChat() {
