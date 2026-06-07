@@ -155,6 +155,22 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
   </div>
   <div class="countdown-items" id="countdown"></div>
   <div class="race-targets" id="raceTargets"></div>
+  <div id="trainingStatusBadge" style="display:none;align-items:center;gap:10px;padding:8px 16px;border-radius:10px;border:1px solid #333;background:#1a1a1a">
+    <div>
+      <div style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">Training Status</div>
+      <div id="tsStatusText" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;margin-top:1px"></div>
+    </div>
+    <div style="width:1px;height:32px;background:#333"></div>
+    <div>
+      <div style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">Readiness</div>
+      <div id="tsReadinessText" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;margin-top:1px"></div>
+    </div>
+    <div style="width:1px;height:32px;background:#333"></div>
+    <div>
+      <div style="font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">HRV semanal</div>
+      <div id="tsHRVText" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;margin-top:1px"></div>
+    </div>
+  </div>
 </div>
 
 <main>
@@ -1166,6 +1182,59 @@ function renderHRVTrend(activities) {
   document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">Basado en tendencia de FC de reposo y carga acumulada de las últimas ${dataPoints.length} actividades. HRV directo disponible cuando Garmin lo sincronice.</span>`;
 }
 
+
+// ── TRAINING STATUS ───────────────────────────
+async function loadTrainingStatus() {
+  try {
+    const data = await query('training_status_history', '?order=fecha.desc&limit=1');
+    if (!data || !data.length) return;
+
+    const ts = data[0];
+    if (!ts.status && !ts.readiness) return;
+
+    const statusColors = {
+      'peaking':       { color: '#ff4d4d', emoji: '🔥' },
+      'productive':    { color: 'var(--green)', emoji: '📈' },
+      'maintaining':   { color: 'var(--accent3)', emoji: '⚡' },
+      'recovery':      { color: '#a855f7', emoji: '💤' },
+      'unproductive':  { color: 'var(--accent)', emoji: '⚠️' },
+      'overreaching':  { color: '#ff4d4d', emoji: '🚨' },
+      'detraining':    { color: 'var(--muted)', emoji: '📉' },
+    };
+
+    const statusKey = (ts.status || '').toLowerCase().replace(' ', '');
+    const sc = statusColors[statusKey] || { color: 'var(--accent)', emoji: '●' };
+
+    // Readiness color
+    const r = ts.readiness || 0;
+    const rColor = r >= 75 ? 'var(--green)' : r >= 50 ? 'var(--accent)' : 'var(--accent2)';
+
+    // Status label in Spanish
+    const statusLabels = {
+      'peaking': 'PEAKING', 'productive': 'PRODUCTIVE',
+      'maintaining': 'MAINTAINING', 'recovery': 'RECOVERY',
+      'unproductive': 'UNPRODUCTIVE', 'overreaching': 'OVERREACHING',
+      'detraining': 'DETRAINING'
+    };
+
+    document.getElementById('tsStatusText').textContent = 
+      (statusLabels[statusKey] || ts.status || '—').toUpperCase();
+    document.getElementById('tsStatusText').style.color = sc.color;
+
+    document.getElementById('tsReadinessText').textContent = ts.readiness ? ts.readiness + '/100' : '—';
+    document.getElementById('tsReadinessText').style.color = rColor;
+
+    document.getElementById('tsHRVText').textContent = ts.hrv_weekly ? ts.hrv_weekly + 'ms' : '—';
+    document.getElementById('tsHRVText').style.color = 'var(--accent3)';
+
+    // Show the badge
+    document.getElementById('trainingStatusBadge').style.display = 'flex';
+
+  } catch(e) {
+    console.log('Training status no disponible:', e);
+  }
+}
+
 // ── CALENDAR ──────────────────────────────────
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
@@ -1329,6 +1398,7 @@ updateCountdown();
 setInterval(updateCountdown, 60000);
 loadDashboard();
 loadPlanWorkouts();
+loadTrainingStatus();
 setInterval(loadDashboard, 300000);
 </script>
 
