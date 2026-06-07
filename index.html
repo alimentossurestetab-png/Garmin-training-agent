@@ -1514,11 +1514,7 @@ function addMessage(text, isUser) {
   if (!isUser) {
     let html = text
       .split('**').map((p,i) => i%2===1 ? '<strong style="color:#f0f0f0">'+p+'</strong>' : p).join('')
-      .split('
-
-').join('<br><br>').split('
-- ').join('<br>• ').split('
-').join('<br>');
+      .split('\n\n').join('<br><br>').split('\n- ').join('<br>• ').split('\n').join('<br>');
     div.innerHTML = html;
   } else { div.textContent = text; }
   msgs.appendChild(div);
