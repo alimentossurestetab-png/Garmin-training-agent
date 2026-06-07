@@ -129,6 +129,60 @@ def sync_activity(activity, garmin_client, supabase):
     except requests.RequestException as e:
         print(f"  ⚠ Error webhook: {e}")
 
+
+# ── Training Status ───────────────────────────────────────────────────────────
+def sync_training_status(garmin, supabase):
+    """Jala el Training Status actual de Garmin y lo guarda en Supabase."""
+    try:
+        # Training readiness
+        readiness_data = garmin.get_training_readiness("")
+        readiness_score = None
+        if readiness_data and isinstance(readiness_data, list) and len(readiness_data) > 0:
+            readiness_score = readiness_data[0].get("overallScore") or readiness_data[0].get("score")
+        elif readiness_data and isinstance(readiness_data, dict):
+            readiness_score = readiness_data.get("overallScore") or readiness_data.get("score")
+
+        # Training status from stats
+        stats = garmin.get_stats(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        status = None
+        acute_load = None
+        chronic_load = None
+
+        if stats:
+            status = stats.get("trainingStatus") or stats.get("currentTrainingStatus")
+            acute_load = safe_float(stats.get("acuteLoad") or stats.get("shortTermLoad"), 1)
+            chronic_load = safe_float(stats.get("chronicLoad") or stats.get("longTermLoad"), 1)
+
+        # HRV weekly
+        hrv_data = garmin.get_hrv_data(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        hrv_weekly = None
+        if hrv_data and isinstance(hrv_data, dict):
+            hrv_weekly = safe_float(
+                hrv_data.get("hrvSummary", {}).get("weeklyAvg") or
+                hrv_data.get("weeklyAvg"), 1
+            )
+
+        # VO2Max
+        vo2_data = garmin.get_max_metrics(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        vo2max = None
+        if vo2_data and isinstance(vo2_data, list) and len(vo2_data) > 0:
+            vo2max = safe_float(vo2_data[0].get("generic", {}).get("vo2MaxPreciseValue"), 1)
+
+        row = {
+            "status":       status,
+            "readiness":    safe_int(readiness_score),
+            "acute_load":   acute_load,
+            "chronic_load": chronic_load,
+            "hrv_weekly":   hrv_weekly,
+            "vo2max":       vo2max,
+        }
+
+        supabase.table("training_status_history").insert(row).execute()
+        print(f"  ✓ Training Status: {status or '—'} | Readiness: {readiness_score or '—'} | HRV: {hrv_weekly or '—'}")
+
+    except Exception as e:
+        print(f"  ⚠ Error jalando Training Status: {e}")
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     print("Conectando a Garmin Connect...")
@@ -155,6 +209,9 @@ def main():
     print(f"Encontradas {len(activities)} actividad(es), procesando...")
     for activity in activities:
         sync_activity(activity, garmin, supabase)
+
+    # Sync training status (una vez por run, independiente de actividades)
+    sync_training_status(garmin, supabase)
 
     print("Sync completo.")
 
