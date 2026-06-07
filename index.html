@@ -3,14 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com data: blob:;">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Training HQ</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --border:#222;
-  --accent:#e8ff3c; --accent2:#ff4d4d; --accent3:#3caaff;
-  --text:#f0f0f0; --muted:#666; --green:#3cffa0;
+:root{
+  --bg:#0a0a0a;--surface:#111;--surface2:#1a1a1a;--border:#222;
+  --accent:#e8ff3c;--accent2:#ff4d4d;--accent3:#3caaff;
+  --text:#f0f0f0;--muted:#666;--green:#3cffa0;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
@@ -19,8 +16,6 @@ header{border-bottom:1px solid var(--border);padding:16px 28px;display:flex;alig
 .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
 .last-updated{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
-
-/* COUNTDOWN */
 .countdown-banner{background:linear-gradient(135deg,#111 0%,#1a1a0a 100%);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;}
 .race-name{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:3px;color:var(--muted);}
 .countdown-items{display:flex;gap:6px;align-items:center;}
@@ -35,11 +30,7 @@ header{border-bottom:1px solid var(--border);padding:16px 28px;display:flex;alig
 .target-dream{border-color:var(--accent);color:var(--accent);}
 .btn-races{border-color:#444;color:#888;cursor:pointer;transition:all .2s;}
 .btn-races:hover{border-color:#666;color:#aaa;}
-
-/* MAIN */
 main{padding:24px 28px;max-width:1400px;margin:0 auto;}
-
-/* STATS ROW */
 .stats-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px;}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;}
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-color,var(--accent));opacity:.6;}
@@ -48,8 +39,6 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 .stat-unit{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:3px;}
 .stat-delta{font-size:11px;margin-top:4px;}
 .delta-up{color:var(--green);}
-
-/* TRAINING PLAN CARD */
 .plan-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:24px;}
 .plan-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
 .card-title{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:3px;color:var(--muted);}
@@ -65,50 +54,36 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 .week-num{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--text);}
 .week-km{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);}
 .week-phase-dot{width:6px;height:6px;border-radius:50%;margin:4px auto 0;}
-
-/* GRID */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
 .grid-3{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;}
-
-/* ACTIVITY */
 .activity-type{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--accent);letter-spacing:2px;}
 .activity-date{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);}
 .activity-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0;}
 .act-stat{background:var(--surface2);border-radius:6px;padding:10px;}
 .act-stat-val{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--text);}
 .act-stat-lbl{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
-
-/* SPLITS */
 .splits-container{display:flex;flex-direction:column;gap:5px;}
 .split-row{display:flex;align-items:center;gap:8px;}
 .split-km{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);width:20px;text-align:right;}
 .split-bar-wrap{flex:1;height:18px;background:var(--surface2);border-radius:3px;overflow:hidden;}
 .split-bar{height:100%;border-radius:3px;display:flex;align-items:center;padding-left:6px;}
 .split-pace{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;}
-
-/* ZONES */
 .zones-container{display:flex;flex-direction:column;gap:8px;}
 .zone-row{display:flex;align-items:center;gap:10px;}
 .zone-label{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);width:36px;}
 .zone-bar-wrap{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;}
 .zone-bar{height:100%;border-radius:4px;}
 .zone-pct{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);width:32px;text-align:right;}
-
-/* VOLUME CHART */
 .chart-container{position:relative;height:160px;display:flex;align-items:flex-end;gap:3px;}
 .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;}
 .bar{width:100%;border-radius:2px 2px 0 0;cursor:pointer;}
 .bar:hover{opacity:.8;}
 .bar-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);writing-mode:vertical-lr;transform:rotate(180deg);white-space:nowrap;}
-
-/* ANALYSIS */
 .analysis-text{font-size:13px;line-height:1.7;color:#ccc;max-height:300px;overflow-y:auto;padding-right:6px;}
 .analysis-text::-webkit-scrollbar{width:3px;}
 .analysis-text::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 .analysis-text strong{color:var(--text);}
-
-/* HISTORY TABLE */
 .history-table{width:100%;border-collapse:collapse;font-size:12px;}
 .history-table th{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);}
 .history-table td{padding:8px 10px;border-bottom:1px solid #1a1a1a;font-family:'DM Mono',monospace;}
@@ -116,13 +91,9 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 .pace-good{color:var(--green);}
 .pace-ok{color:var(--accent);}
 .pace-slow{color:var(--muted);}
-
-/* LOADING */
 .loading{display:flex;align-items:center;justify-content:center;height:80px;color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;gap:8px;}
 .spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-
-/* MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;align-items:center;justify-content:center;}
 .modal-box{background:#111;border:1px solid #333;border-radius:14px;padding:28px;width:90%;max-width:540px;max-height:80vh;overflow-y:auto;}
 .modal-input{width:100%;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Sans',sans-serif;}
@@ -175,7 +146,7 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 
 <main>
   <!-- STATS -->
-  <div class="stats-row">
+  <div class="stats-row" id="statsRow">
     <div class="stat-card" style="--accent-color:var(--accent)">
       <div class="stat-label">Distancia total</div>
       <div class="stat-value" id="totalKm">—</div>
@@ -212,7 +183,7 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 
   <!-- WEEKLY ZONES & LOAD -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px" id="weeklyZonesSection">
-    
+
     <!-- Distribución de zonas FC semana -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -272,7 +243,7 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 
   <!-- RUNNING DYNAMICS + HRV -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
-    
+
     <!-- Running Dynamics -->
     <div class="card">
       <div class="card-title" style="margin-bottom:16px">Running Dynamics — Último Entreno</div>
@@ -299,7 +270,6 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
     <div id="planSummary" style="font-size:13px;color:#888;margin-bottom:16px;line-height:1.6"></div>
     <div class="plan-weeks" id="planWeeks"></div>
   </div>
-
 
   <!-- CALENDARIO -->
   <div class="card" style="margin-bottom:20px">
@@ -829,8 +799,6 @@ async function loadDashboard() {
   if (!selectedId) loadAnalysis();
 }
 
-
-
 // ── WEEKLY ZONES & LOAD ───────────────────────
 function renderWeeklyZones(activities) {
   const today = new Date();
@@ -979,11 +947,10 @@ function renderWeeklyZones(activities) {
   document.getElementById('weekLoadRecommendation').textContent = loadRec;
 }
 
-
 // ── RUNNING DYNAMICS ──────────────────────────
 async function renderRunningDynamics(activity) {
   const container = document.getElementById('runningDynamicsContent');
-  
+
   if (!activity.ground_contact_time && !activity.vertical_oscillation && !activity.stride_length) {
     container.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de Running Dynamics para este entreno.</div>';
     return;
@@ -992,12 +959,12 @@ async function renderRunningDynamics(activity) {
   // Fetch last 30 days for personal baseline
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const history = await query('actividades', 
+  const history = await query('actividades',
     `?order=fecha.desc&limit=60&select=fecha,ground_contact_time,vertical_oscillation,stride_length,vertical_ratio,avg_power,distancia_km,tipo`
   );
 
   // Filter to activities with dynamics data (exclude current)
-  const withDynamics = (history || []).filter(a => 
+  const withDynamics = (history || []).filter(a =>
     a.garmin_id !== activity.garmin_id &&
     a.ground_contact_time && a.vertical_oscillation
   );
@@ -1073,7 +1040,7 @@ async function renderRunningDynamics(activity) {
   }
 
   // Contextual note based on activity type
-  const contextNote = isRace 
+  const contextNote = isRace
     ? '🏁 Datos de carrera — referencia de máximo rendimiento para comparar futuros eventos.'
     : parseFloat(activity.pace_avg) > 5.8
     ? '💡 Rodaje suave — GCT y VO más altos son normales a menor intensidad.'
@@ -1100,7 +1067,7 @@ function renderHRVTrend(activities) {
   // Get last 28 days of activities with hrv_status
   const now = new Date();
   const fourWeeks = activities.filter(a => (now - new Date(a.fecha)) < 28 * 86400000);
-  
+
   // Since hrv_status is mostly null in DB, simulate trend from VO2Max and Training Load
   // Using available data: training_load, fc_avg, vo2max as HRV proxies
   const dataPoints = activities
@@ -1162,7 +1129,7 @@ function renderHRVTrend(activities) {
   const yP = v => PT+((maxS-v)/(maxS-minS))*cH;
   const pts = scores.map((s,i)=>xP(i)+','+yP(s)).join(' ');
   const area = 'M'+scores.map((s,i)=>xP(i)+','+yP(s)).join('L')+'L'+xP(scores.length-1)+','+(PT+cH)+'L'+xP(0)+','+(PT+cH)+'Z';
-  
+
   // Trend line
   const trendY1 = yP(olderAvg);
   const trendY2 = yP(recentAvg);
@@ -1181,7 +1148,6 @@ function renderHRVTrend(activities) {
 
   document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">Basado en tendencia de FC de reposo y carga acumulada de las últimas ${dataPoints.length} actividades. HRV directo disponible cuando Garmin lo sincronice.</span>`;
 }
-
 
 // ── TRAINING STATUS ───────────────────────────
 async function loadTrainingStatus() {
@@ -1217,7 +1183,7 @@ async function loadTrainingStatus() {
       'detraining': 'DETRAINING'
     };
 
-    document.getElementById('tsStatusText').textContent = 
+    document.getElementById('tsStatusText').textContent =
       (statusLabels[statusKey] || ts.status || '—').toUpperCase();
     document.getElementById('tsStatusText').style.color = sc.color;
 
@@ -1400,6 +1366,200 @@ loadDashboard();
 loadPlanWorkouts();
 loadTrainingStatus();
 setInterval(loadDashboard, 300000);
+
+// ── CHAT ─────────────────────────────────────
+(function() {
+  var CHAT_KEY = 'coach_ia_api_key';
+  var chatOpen = false;
+  var chatHistory = [];
+
+  function getApiKey() { return localStorage.getItem(CHAT_KEY); }
+  function saveApiKey(k) { localStorage.setItem(CHAT_KEY, k); }
+
+  window.toggleChat = function() {
+    chatOpen = !chatOpen;
+    var panel = document.getElementById('chatPanel');
+    var btn = document.getElementById('chatBtn');
+    panel.style.display = chatOpen ? 'flex' : 'none';
+    btn.style.transform = chatOpen ? 'scale(0.9)' : 'scale(1)';
+    if (chatOpen) {
+      if (!getApiKey()) showApiKeySetup();
+      else document.getElementById('chatInput').focus();
+    }
+  };
+
+  window.showApiKeySetup = function() {
+    document.getElementById('chatMessages').innerHTML =
+      '<div style="background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:14px;font-size:13px;color:#aaa;line-height:1.7">' +
+      'Para usar el Coach IA necesitas tu API key de Anthropic.<br><br>' +
+      '<strong style="color:#f0f0f0">Donde la encuentro?</strong><br>' +
+      'console.anthropic.com - API Keys<br><br>' +
+      '<strong style="color:#f0f0f0">Es seguro?</strong><br>' +
+      'Si, se guarda solo en este navegador, nunca en GitHub ni en ningun servidor.' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">' +
+      '<input id="apiKeyInput" placeholder="sk-ant-api03-..." style="background:#1a1a1a;border:1px solid #444;border-radius:8px;padding:8px 12px;color:#f0f0f0;font-size:12px;font-family:DM Mono,monospace;outline:none">' +
+      '<button onclick="confirmApiKey()" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:9px;font-family:Bebas Neue,sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer">GUARDAR Y CONTINUAR</button>' +
+      '</div>';
+    document.getElementById('chatSuggestions').style.display = 'none';
+  };
+
+  window.confirmApiKey = function() {
+    var input = document.getElementById('apiKeyInput');
+    var key = input ? input.value.trim() : '';
+    if (!key || key.indexOf('sk-ant') !== 0) { alert('API key invalida'); return; }
+    saveApiKey(key);
+    document.getElementById('chatMessages').innerHTML =
+      '<div style="background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#aaa;line-height:1.5">' +
+      'API key guardada. Hola! Soy tu Coach IA. En que te ayudo?' +
+      '</div>';
+    document.getElementById('chatSuggestions').style.display = 'flex';
+    document.getElementById('chatInput').focus();
+  };
+
+  window.sendSuggestion = function(el) {
+    document.getElementById('chatInput').value = el.textContent;
+    document.getElementById('chatSuggestions').style.display = 'none';
+    sendChat();
+  };
+
+  function addMessage(text, isUser) {
+    var msgs = document.getElementById('chatMessages');
+    var div = document.createElement('div');
+    div.style.cssText = isUser
+      ? 'background:rgba(232,255,60,.1);border:1px solid rgba(232,255,60,.2);border-radius:10px;padding:10px 14px;font-size:13px;color:#e8ff3c;line-height:1.5;align-self:flex-end;max-width:90%'
+      : 'background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#ccc;line-height:1.6;max-width:95%';
+    if (!isUser) {
+      var html = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f0f0f0">$1</strong>');
+      html = html.replace(/
+
+/g, '<br><br>').replace(/
+- /g, '<br>- ').replace(/
+/g, '<br>');
+      div.innerHTML = html;
+    } else {
+      div.textContent = text;
+    }
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+  }
+
+  async function buildContext() {
+    var acts = await window.query('actividades', '?order=fecha.desc&limit=30') || [];
+    var plan = await window.query('plan_entrenos', '?order=semana.asc') || [];
+    var tsData = await window.query('training_status_history', '?order=fecha.desc&limit=1') || [];
+
+    var today = new Date();
+    var dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    var weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dow);
+    weekStart.setHours(0,0,0,0);
+    var weekActs = acts.filter(function(a) { return new Date(a.fecha) >= weekStart; });
+
+    function dp(dec) {
+      if (!dec) return '-';
+      var m = Math.floor(dec), s = Math.round((dec - m) * 60);
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    var totalKm = acts.reduce(function(s,a) { return s + (parseFloat(a.distancia_km)||0); }, 0);
+    var latest = acts[0] || {};
+    var ts = tsData[0] || null;
+    var weekKm = weekActs.reduce(function(s,a) { return s + (parseFloat(a.distancia_km)||0); }, 0);
+
+    var lines = [
+      'PERFIL: Threshold 4:27/km a 171bpm | Z2: 5:45-6:10/km a 138-148bpm',
+      'Entrena: lunes, jueves, viernes, sabado',
+      'Proxima carrera: Medio Maraton Villahermosa 28 jun 2026, meta 1:45-1:48',
+      'Completo: Rock n Roll San Diego Half 1:50:08 (31 mayo 2026)',
+      ts ? ('Training Status: ' + (ts.status||'-') + ' | Readiness: ' + (ts.readiness||'-')) : '',
+      '',
+      'RESUMEN: ' + totalKm.toFixed(1) + 'km totales | VO2Max: ' + (latest.vo2max||'-') + ' | Esta semana: ' + weekKm.toFixed(1) + 'km en ' + weekActs.length + ' sesiones',
+      '',
+      'ULTIMOS 10 ENTRENOS:'
+    ];
+
+    acts.slice(0,10).forEach(function(a) {
+      lines.push(
+        (a.fecha||'').slice(0,10) + ': ' + a.distancia_km + 'km | ' + dp(a.pace_avg) + '/km | FC ' + (a.fc_avg||'-') + ' | Load ' + (a.training_load ? Math.round(a.training_load) : '-')
+      );
+    });
+
+    lines.push('', 'PLAN VILLAHERMOSA:');
+    plan.forEach(function(s) {
+      lines.push('Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70));
+    });
+
+    return lines.join('
+');
+  }
+
+  window.sendChat = async function() {
+    var apiKey = getApiKey();
+    if (!apiKey) { showApiKeySetup(); return; }
+
+    var input = document.getElementById('chatInput');
+    var question = input.value.trim();
+    if (!question) return;
+
+    input.value = '';
+    document.getElementById('chatSuggestions').style.display = 'none';
+    addMessage(question, true);
+
+    var loadingDiv = addMessage('...', false);
+    loadingDiv.style.color = '#555';
+    var sendBtn = document.getElementById('chatSendBtn');
+    sendBtn.disabled = true;
+    sendBtn.textContent = '...';
+
+    try {
+      var context = await buildContext();
+      chatHistory.push({ role: 'user', content: question });
+
+      var response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 800,
+          system: 'Eres un coach de running experto. Responde conciso y practico, maximo 200 palabras, con datos especificos del corredor.
+
+' + context,
+          messages: chatHistory.slice(-8)
+        })
+      });
+
+      var data = await response.json();
+      if (data.error) throw new Error(data.error.message);
+
+      var reply = (data.content && data.content[0]) ? data.content[0].text : 'Sin respuesta.';
+      chatHistory.push({ role: 'assistant', content: reply });
+      if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
+
+      loadingDiv.remove();
+      addMessage(reply, false);
+
+    } catch(err) {
+      loadingDiv.remove();
+      if (err.message && err.message.indexOf('401') >= 0) {
+        addMessage('API key invalida. Usa el icono de ajustes para actualizarla.', false);
+        localStorage.removeItem(CHAT_KEY);
+      } else {
+        addMessage('Error al conectar. Intenta de nuevo.', false);
+      }
+      console.error(err);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Enviar';
+    }
+  };
+})();
 </script>
 
 <!-- CHAT BUTTON -->
@@ -1409,227 +1569,31 @@ setInterval(loadDashboard, 300000);
 
 <!-- CHAT PANEL -->
 <div id="chatPanel" style="display:none;position:fixed;bottom:90px;right:24px;width:380px;max-width:calc(100vw - 32px);background:#111;border:1px solid #333;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);z-index:500;flex-direction:column;overflow:hidden">
-  
-  <!-- Header -->
   <div style="padding:16px 20px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:center;background:#0f0f0f">
     <div>
       <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--accent)">COACH IA</div>
-      <div style="font-size:10px;color:#555;font-family:'DM Mono',monospace">Pregúntame sobre tus entrenos</div>
+      <div style="font-size:10px;color:#555;font-family:'DM Mono',monospace">Preguntame sobre tus entrenos</div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center"><div onclick="showApiKeySetup()" style="cursor:pointer;color:#555;font-size:14px;padding:4px 8px" title="Cambiar API key">⚙</div><div style="display:flex;gap:4px;align-items:center"><div onclick="showApiKeySetup()" style="cursor:pointer;color:#555;font-size:13px;padding:4px 8px" title="Cambiar API key">⚙</div><div onclick="toggleChat()" style="cursor:pointer;color:#555;font-size:18px;padding:4px 8px">✕</div></div></div>
+    <div style="display:flex;gap:4px;align-items:center">
+      <div onclick="showApiKeySetup()" style="cursor:pointer;color:#555;font-size:13px;padding:4px 8px" title="Cambiar API key">&#9881;</div>
+      <div onclick="toggleChat()" style="cursor:pointer;color:#555;font-size:18px;padding:4px 8px">&#10005;</div>
+    </div>
   </div>
-
-  <!-- Messages -->
   <div id="chatMessages" style="height:320px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px">
-    <div style="background:#1a1a1a;border-radius:10px;padding:10px 14px;font-size:13px;color:#aaa;line-height:1.5;border:1px solid #222">
-      Hola 👋 Soy tu coach IA. Tengo acceso a todos tus entrenamientos y tu plan hacia Villahermosa. ¿En qué te puedo ayudar?
+    <div style="background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#aaa;line-height:1.5">
+      Hola! Soy tu Coach IA. Tengo acceso a todos tus entrenamientos y plan hacia Villahermosa. En que te ayudo?
     </div>
   </div>
-
-  <!-- Suggestions -->
   <div id="chatSuggestions" style="padding:0 16px 10px;display:flex;flex-wrap:wrap;gap:6px">
-    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Cómo voy esta semana?</div>
-    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Estoy listo para Villahermosa?</div>
-    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Cuál fue mi mejor semana?</div>
-    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">¿Progresé en VO2Max?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">Como voy esta semana?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">Listo para Villahermosa?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">Cual fue mi mejor semana?</div>
+    <div onclick="sendSuggestion(this)" style="background:#1a1a1a;border:1px solid #333;border-radius:20px;padding:4px 12px;font-size:11px;color:#888;cursor:pointer;font-family:'DM Mono',monospace">Siguiente entreno recomendado?</div>
   </div>
-
-  <!-- Input -->
   <div style="padding:12px 16px;border-top:1px solid #222;display:flex;gap:8px;background:#0f0f0f">
-    <input id="chatInput" 
-      placeholder="Pregunta algo sobre tus entrenos..." 
-      onkeydown="if(event.key==='Enter')sendChat()"
-      style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Sans',sans-serif">
-    <button onclick="sendChat()" id="chatSendBtn"
-      style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer;white-space:nowrap">
-      Enviar
-    </button>
+    <input id="chatInput" placeholder="Pregunta algo sobre tus entrenos..." onkeydown="if(event.key==='Enter')sendChat()" style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:8px 12px;color:#f0f0f0;font-size:13px;outline:none;font-family:'DM Sans',sans-serif">
+    <button onclick="sendChat()" id="chatSendBtn" style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer">Enviar</button>
   </div>
 </div>
-
-<script>
-// ── CHAT ──────────────────────────────────────
-let chatOpen = false;
-let chatHistory = [];
-const CHAT_KEY = 'coach_ia_api_key';
-
-function getApiKey() { return localStorage.getItem(CHAT_KEY); }
-function saveApiKey(k) { localStorage.setItem(CHAT_KEY, k); }
-
-function toggleChat() {
-  chatOpen = !chatOpen;
-  document.getElementById('chatPanel').style.display = chatOpen ? 'flex' : 'none';
-  document.getElementById('chatBtn').style.transform = chatOpen ? 'scale(0.9)' : 'scale(1)';
-  if (chatOpen) {
-    if (!getApiKey()) showApiKeySetup();
-    else document.getElementById('chatInput').focus();
-  }
-}
-
-function showApiKeySetup() {
-  document.getElementById('chatMessages').innerHTML = `
-    <div style="background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:14px;font-size:13px;color:#aaa;line-height:1.7">
-      Para usar el Coach IA necesitas tu API key de Anthropic.<br><br>
-      <strong style="color:#f0f0f0">¿Dónde la encuentro?</strong><br>
-      console.anthropic.com → API Keys<br><br>
-      <strong style="color:#f0f0f0">¿Es seguro?</strong><br>
-      Sí — se guarda solo en este navegador, nunca en GitHub ni en ningún servidor.
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-      <input id="apiKeyInput" placeholder="sk-ant-api03-..."
-        style="background:#1a1a1a;border:1px solid #444;border-radius:8px;padding:8px 12px;color:#f0f0f0;font-size:12px;font-family:'DM Mono',monospace;outline:none">
-      <button onclick="confirmApiKey()"
-        style="background:var(--accent);color:#000;border:none;border-radius:8px;padding:9px;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;cursor:pointer">
-        GUARDAR Y CONTINUAR
-      </button>
-    </div>`;
-  document.getElementById('chatSuggestions').style.display = 'none';
-}
-
-function confirmApiKey() {
-  const input = document.getElementById('apiKeyInput');
-  const key = (input && input.value) ? input.value.trim() : '';
-  if (!key || !key.startsWith('sk-ant')) { alert('API key inválida — debe empezar con sk-ant'); return; }
-  saveApiKey(key);
-  document.getElementById('chatMessages').innerHTML = `
-    <div style="background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#aaa;line-height:1.5">
-      ✅ Listo. Hola 👋 Soy tu Coach IA. Tengo acceso a todos tus entrenamientos y plan hacia Villahermosa. ¿En qué te ayudo?
-    </div>`;
-  document.getElementById('chatSuggestions').style.display = 'flex';
-  document.getElementById('chatInput').focus();
-}
-
-function sendSuggestion(el) {
-  document.getElementById('chatInput').value = el.textContent;
-  document.getElementById('chatSuggestions').style.display = 'none';
-  sendChat();
-}
-
-function addMessage(text, isUser) {
-  const msgs = document.getElementById('chatMessages');
-  const div = document.createElement('div');
-  div.style.cssText = isUser
-    ? 'background:rgba(232,255,60,.1);border:1px solid rgba(232,255,60,.2);border-radius:10px;padding:10px 14px;font-size:13px;color:#e8ff3c;line-height:1.5;align-self:flex-end;max-width:90%'
-    : 'background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#ccc;line-height:1.6;max-width:95%';
-  if (!isUser) {
-    let html = text
-      .split('**').map((p,i) => i%2===1 ? '<strong style="color:#f0f0f0">'+p+'</strong>' : p).join('')
-      .split('\n\n').join('<br><br>').split('\n- ').join('<br>• ').split('\n').join('<br>');
-    div.innerHTML = html;
-  } else { div.textContent = text; }
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
-}
-
-async function buildContext() {
-  const [acts, analyses, plan, tsData] = await Promise.all([
-    query('actividades', '?order=fecha.desc&limit=30'),
-    query('analisis', '?order=fecha.desc&limit=3'),
-    query('plan_entrenos', '?order=semana.asc'),
-    query('training_status_history', '?order=fecha.desc&limit=1')
-  ]);
-
-  const today = new Date();
-  const dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - dow);
-  weekStart.setHours(0,0,0,0);
-  const weekActs = (acts||[]).filter(a => new Date(a.fecha) >= weekStart);
-
-  function dp(dec) {
-    if (!dec) return '—';
-    const m = Math.floor(dec), s = Math.round((dec - m) * 60);
-    return m + ':' + s.toString().padStart(2,'0');
-  }
-
-  const totalKm = (acts||[]).reduce((s,a) => s + (parseFloat(a.distancia_km)||0), 0);
-  const latest = (acts||[])[0];
-  const ts = tsData && tsData[0];
-
-  return `PERFIL:
-- Threshold: 4:27/km a 171bpm | Z2: 5:45-6:10/km a 138-148bpm
-- Entrena: lunes, jueves, viernes, sábado
-- Próxima carrera: Medio Maratón Villahermosa 28 jun 2026, meta 1:45-1:48 (calor: 1:50-1:52)
-- Completó: Rock n Roll San Diego Half — 1:50:08 (31 mayo 2026)
-${ts ? '- Training Status: ' + (ts.status||'—') + ' | Readiness: ' + (ts.readiness||'—') : ''}
-
-RESUMEN: ${totalKm.toFixed(1)}km totales | VO2Max: ${latest?.vo2max||'—'} | Esta semana: ${weekActs.reduce((s,a)=>s+(parseFloat(a.distancia_km)||0),0).toFixed(1)}km en ${weekActs.length} sesiones
-
-ÚLTIMOS 10 ENTRENOS:
-${(acts||[]).slice(0,10).map(a =>
-  a.fecha?.slice(0,10) + ': ' + a.distancia_km + 'km | ' + dp(a.pace_avg) + '/km | FC ' + (a.fc_avg||'—') + ' | Load ' + (a.training_load ? Math.round(a.training_load) : '—')
-).join('\n')}
-
-PLAN VILLAHERMOSA:
-${(plan||[]).map(s => 'Sem ' + s.semana + ' (' + s.fecha_inicio + '): ' + (s.objetivo_semana||'').slice(0,70)).join('\n')}`;
-}
-
-async function sendChat() {
-  const apiKey = getApiKey();
-  if (!apiKey) { showApiKeySetup(); return; }
-
-  const input = document.getElementById('chatInput');
-  const question = input.value.trim();
-  if (!question) return;
-
-  input.value = '';
-  document.getElementById('chatSuggestions').style.display = 'none';
-  addMessage(question, true);
-
-  const loadingDiv = addMessage('⋯', false);
-  loadingDiv.style.color = '#555';
-  const sendBtn = document.getElementById('chatSendBtn');
-  sendBtn.disabled = true;
-  sendBtn.textContent = '...';
-
-  try {
-    const context = await buildContext();
-    chatHistory.push({ role: 'user', content: question });
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        max_tokens: 800,
-        system: 'Eres un coach de running experto y personal. Responde conciso, práctico, máximo 200 palabras, ve directo al punto con datos específicos del corredor.
-
-' + context,
-        messages: chatHistory.slice(-8)
-      })
-    });
-
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-
-    const reply = data?.content?.[0]?.text || 'Sin respuesta.';
-    chatHistory.push({ role: 'assistant', content: reply });
-    if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
-
-    loadingDiv.remove();
-    addMessage(reply, false);
-
-  } catch(err) {
-    loadingDiv.remove();
-    if (err.message && err.message.includes('401')) {
-      addMessage('API key inválida o expirada. Haz click en ⚙ para actualizarla.', false);
-      localStorage.removeItem(CHAT_KEY);
-    } else {
-      addMessage('Error al conectar. Intenta de nuevo.', false);
-    }
-    console.error(err);
-  } finally {
-    sendBtn.disabled = false;
-    sendBtn.textContent = 'Enviar';
-  }
-}
-</script>
-
 </body>
 </html>
