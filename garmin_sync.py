@@ -53,6 +53,8 @@ def build_splits(splits_raw):
 def build_row(activity, splits_data):
     """Construye el dict a insertar en Supabase."""
     cadencia_raw = activity.get("averageRunningCadenceInStepsPerMinute")
+    stride_raw   = activity.get("avgStrideLength")
+    stride_m     = round(float(stride_raw) / 100, 3) if stride_raw else None
     return {
         "garmin_id":                   str(activity.get("activityId", "")),
         "fecha":                       activity.get("startTimeGMT"),
@@ -80,6 +82,11 @@ def build_row(activity, splits_data):
         "tiempo_zona4_seg":            activity.get("hrTimeInZone_4"),
         "tiempo_zona5_seg":            activity.get("hrTimeInZone_5"),
         "splits_json":                 splits_data,
+        "ground_contact_time":         safe_float(activity.get("avgGroundContactTime"), 1),
+        "vertical_oscillation":        safe_float(activity.get("avgVerticalOscillation"), 1),
+        "stride_length":               stride_m,
+        "vertical_ratio":              safe_float(activity.get("avgVerticalRatio"), 2),
+        "avg_power":                   safe_float(activity.get("avgPower"), 1),
     }
 
 def sync_activity(activity, garmin_client, supabase):
