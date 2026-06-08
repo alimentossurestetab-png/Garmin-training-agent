@@ -1122,7 +1122,7 @@ function renderHRVTrend(activities) {
   badge.style.border = '1px solid ' + statusColor + '44';
 
   // Draw SVG chart
-  const W=500, H=100, PL=8, PR=8, PT=8, PB=20;
+  const W=500, H=120, PL=32, PR=8, PT=10, PB=22;
   const cW=W-PL-PR, cH=H-PT-PB;
   const minS=Math.min(...scores)-0.5, maxS=Math.max(...scores)+0.5;
   const xP = i => PL+(i/(scores.length-1))*cW;
@@ -1135,14 +1135,33 @@ function renderHRVTrend(activities) {
   const trendY2 = yP(recentAvg);
   const trendMid = scores.length > 5 ? xP(scores.length-5) : xP(0);
 
+  // Y-axis ticks: show 3 evenly spaced values (min, mid, max of actual score range)
+  const yTickValues = [
+    Math.ceil(minS + 0.5),
+    Math.round((minS + maxS) / 2),
+    Math.floor(maxS - 0.5)
+  ].filter((v,i,a) => a.indexOf(v) === i); // dedupe
+
   document.getElementById('hrvChartContainer').innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <!-- Y axis line -->
+      <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT+cH}" stroke="#333" stroke-width="1"/>
+      <!-- Y axis ticks and gridlines -->
+      ${yTickValues.map(v => `
+        <line x1="${PL-4}" y1="${yP(v)}" x2="${PL+cW}" y2="${yP(v)}" stroke="#222" stroke-width="1" stroke-dasharray="3,4"/>
+        <text x="${PL-6}" y="${yP(v)+3}" fill="#555" font-size="8" font-family="DM Mono,monospace" text-anchor="end">${v.toFixed(1)}</text>
+      `).join('')}
+      <!-- Y axis label -->
+      <text x="8" y="${PT + cH/2}" fill="#444" font-size="7" font-family="DM Mono,monospace" text-anchor="middle" transform="rotate(-90, 8, ${PT + cH/2})">SCORE</text>
+      <!-- Area + line -->
       <path d="${area}" fill="${statusColor}08"/>
       <polyline points="${pts}" fill="none" stroke="${statusColor}" stroke-width="2" stroke-linejoin="round"/>
       <line x1="${trendMid}" y1="${trendY1}" x2="${xP(scores.length-1)}" y2="${trendY2}" stroke="${statusColor}" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+      <!-- Data points -->
       ${scores.map((s,i)=>`<circle cx="${xP(i)}" cy="${yP(s)}" r="3" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5">
-        <title>${dataPoints[i].fecha} · FC ${dataPoints[i].fc}bpm · Load ${Math.round(dataPoints[i].load)}</title>
+        <title>${dataPoints[i].fecha} · Score ${s.toFixed(1)} · FC ${dataPoints[i].fc}bpm · Load ${Math.round(dataPoints[i].load)}</title>
       </circle>`).join('')}
+      <!-- X axis date labels -->
       ${dataPoints.map((d,i) => i%4===0||i===dataPoints.length-1 ? `<text x="${xP(i)}" y="${H-4}" fill="#444" font-size="8" font-family="DM Mono,monospace" text-anchor="middle">${d.fecha.slice(5)}</text>` : '').join('')}
     </svg>`;
 
