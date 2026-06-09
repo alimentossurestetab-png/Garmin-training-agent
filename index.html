@@ -1067,21 +1067,35 @@ async function renderHRVTrend() {
   // Fetch real HRV data (ms) from training_status_history
   let rawData = [];
   try {
-    rawData = await query('training_status_history', '?order=created_at.desc&limit=60') || [];
-  } catch(e) {}
+    const result = await query('training_status_history', '?order=fecha.desc&limit=60');
+    rawData = Array.isArray(result) ? result : [];
+  } catch(e) { rawData = []; }
 
   // Filter to entries with actual HRV ms values and reverse to chronological order
   const dataPoints = rawData
     .filter(d => d.hrv_weekly != null && parseFloat(d.hrv_weekly) > 0)
     .reverse()
     .map(d => ({
-      fecha: (d.created_at || d.fecha || '').slice(0, 10),
+      fecha: (d.fecha || d.created_at || '').slice(0, 10),
       hrv: parseFloat(d.hrv_weekly)
     }));
 
-  if (dataPoints.length < 2) {
-    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos HRV reales aún — Garmin los sincronizará automáticamente.</div>';
+  if (dataPoints.length === 0) {
+    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos HRV aún — Garmin los sincronizará en el próximo ciclo.</div>';
     document.getElementById('hrvStatusBadge').textContent = '';
+    return;
+  }
+
+  // Si solo hay 1 punto, mostrarlo como valor actual sin gráfica de tendencia
+  if (dataPoints.length === 1) {
+    const v = dataPoints[0].hrv;
+    document.getElementById('hrvChartContainer').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:6px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--accent);letter-spacing:2px">${v} <span style="font-size:18px;opacity:0.6">ms</span></div>
+        <div style="font-size:10px;color:var(--muted)">${dataPoints[0].fecha} — acumulando historial para tendencia</div>
+      </div>`;
+    document.getElementById('hrvStatusBadge').textContent = '';
+    document.getElementById('hrvSummary').innerHTML = `<span style="color:var(--muted);font-size:11px">HRV real de Garmin · 1 registro disponible · próximo sync añadirá más puntos para tendencia</span>`;
     return;
   }
 
