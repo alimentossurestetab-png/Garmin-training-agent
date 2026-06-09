@@ -1359,6 +1359,78 @@ loadPlanWorkouts();
 loadTrainingStatus();
 setInterval(loadDashboard, 300000);
 
+// ── ACTUALIZAR PLAN ───────────────────────────
+async function updatePlanDay(fecha, tipo, descripcion, km, pace_objetivo, completado) {
+  // Traer todas las semanas del plan
+  const semanas = await query('plan_entrenos', '?order=semana.asc');
+  if (!semanas || !semanas.length) return { ok: false, error: 'No se encontró el plan en la base de datos.' };
+
+  // Buscar la semana que contiene esa fecha
+  let targetSemana = null;
+  for (let i = 0; i < semanas.length; i++) {
+    const s = semanas[i];
+    const inicioSem = new Date(s.fecha_inicio);
+    const finSem = new Date(inicioSem);
+    finSem.setDate(inicioSem.getDate() + 6);
+    const fechaTarget = new Date(fecha);
+    if (fechaTarget >= inicioSem && fechaTarget <= finSem) {
+      targetSemana = s;
+      break;
+    }
+  }
+
+  if (!targetSemana) return { ok: false, error: `No hay semana de plan que contenga la fecha ${fecha}.` };
+
+  // Parsear entrenos existentes
+  let entrenos = targetSemana.entrenos;
+  if (typeof entrenos === 'string') {
+    try { entrenos = JSON.parse(entrenos); } catch(e) { entrenos = []; }
+  }
+  if (!Array.isArray(entrenos)) entrenos = [];
+
+  // Actualizar o insertar el día
+  const idx = entrenos.findIndex(e => e.fecha === fecha);
+  const newWorkout = {
+    fecha,
+    tipo,
+    descripcion,
+    km: km || null,
+    pace_objetivo: pace_objetivo || null,
+    completado: completado !== undefined ? completado : false
+  };
+
+  if (idx >= 0) {
+    entrenos[idx] = newWorkout;
+  } else {
+    entrenos.push(newWorkout);
+    entrenos.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }
+
+  // PATCH a Supabase
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/plan_entrenos?semana=eq.${targetSemana.semana}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ entrenos: entrenos })
+    });
+
+    if (!res.ok) return { ok: false, error: `Error al guardar: ${res.status}` };
+
+    // Refrescar calendario
+    cachedPlanWorkouts = null;
+    await loadPlanWorkouts();
+
+    return { ok: true, semana: targetSemana.semana, entrenos_total: entrenos.length };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 // ── CHAT ─────────────────────────────────────
 (function() {
   var CHAT_KEY = 'coach_ia_api_key';
@@ -1482,6 +1554,24 @@ setInterval(loadDashboard, 300000);
     return lines.join('\n');
   }
 
+  // Definición de herramientas disponibles para Claude
+  var TOOLS = [{
+    name: 'update_training_day',
+    description: 'Modifica o reemplaza un entreno en el calendario del plan. Úsalo cuando el usuario mencione que entrenó algo diferente a lo planeado, quiera cambiar un día, mover un entreno, o ajustar el plan por cualquier razón.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fecha:         { type: 'string', description: 'Fecha del entreno a modificar (YYYY-MM-DD)' },
+        tipo:          { type: 'string', enum: ['Fácil', 'Tempo', 'Intervalos', 'Long Run', 'Descanso', 'Carrera', 'Otro'], description: 'Tipo de entreno' },
+        descripcion:   { type: 'string', description: 'Descripción del entreno (qué se hizo, distancia, ritmos)' },
+        km:            { type: 'number', description: 'Distancia en kilómetros' },
+        pace_objetivo: { type: 'string', description: 'Pace objetivo o realizado (ej: 5:00-5:10/km)' },
+        completado:    { type: 'boolean', description: 'true si el entreno ya fue completado' }
+      },
+      required: ['fecha', 'tipo', 'descripcion']
+    }
+  }];
+
   window.sendChat = async function() {
     var apiKey = getApiKey();
     if (!apiKey) { showApiKeySetup(); return; }
@@ -1504,6 +1594,11 @@ setInterval(loadDashboard, 300000);
       var context = await buildContext();
       chatHistory.push({ role: 'user', content: question });
 
+      var systemPrompt = 'Eres un coach de running experto y asistente de calendario. Responde conciso y practico, maximo 200 palabras.\n' +
+        'Cuando el usuario mencione que hizo algo diferente a lo planeado, que quiere cambiar un entreno, mover un dia, o ajustar el plan, usa la herramienta update_training_day para actualizar el calendario inmediatamente.\n' +
+        'Si el usuario no especifica la fecha exacta, infierela del contexto (ej: "hoy" = ' + new Date().toISOString().slice(0,10) + ').\n\n' + context;
+
+      // Primera llamada con tools
       var response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -1514,8 +1609,9 @@ setInterval(loadDashboard, 300000);
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-5',
-          max_tokens: 800,
-          system: 'Eres un coach de running experto. Responde conciso y practico, maximo 200 palabras, con datos especificos del corredor.\n\n' + context,
+          max_tokens: 1024,
+          system: systemPrompt,
+          tools: TOOLS,
           messages: chatHistory.slice(-8)
         })
       });
@@ -1523,10 +1619,63 @@ setInterval(loadDashboard, 300000);
       var data = await response.json();
       if (data.error) throw new Error(data.error.message);
 
-      var reply = (data.content && data.content[0]) ? data.content[0].text : 'Sin respuesta.';
+      // Manejar tool use
+      if (data.stop_reason === 'tool_use') {
+        var toolUseBlock = data.content.find(b => b.type === 'tool_use');
+        if (toolUseBlock && toolUseBlock.name === 'update_training_day') {
+          var inp = toolUseBlock.input;
+          loadingDiv.textContent = 'Actualizando calendario...';
+
+          var result = await updatePlanDay(inp.fecha, inp.tipo, inp.descripcion, inp.km, inp.pace_objetivo, inp.completado);
+
+          // Segunda llamada con tool_result
+          var messagesWithTool = chatHistory.slice(-8);
+          // Reemplazar el último user msg con la secuencia correcta
+          messagesWithTool = messagesWithTool.slice(0, -1).concat([
+            { role: 'user', content: question },
+            { role: 'assistant', content: data.content },
+            { role: 'user', content: [{
+              type: 'tool_result',
+              tool_use_id: toolUseBlock.id,
+              content: result.ok
+                ? JSON.stringify({ success: true, mensaje: `Calendario actualizado: ${inp.tipo} el ${inp.fecha}` })
+                : JSON.stringify({ success: false, error: result.error })
+            }]}
+          ]);
+
+          var response2 = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-5',
+              max_tokens: 512,
+              system: systemPrompt,
+              tools: TOOLS,
+              messages: messagesWithTool
+            })
+          });
+
+          var data2 = await response2.json();
+          if (data2.error) throw new Error(data2.error.message);
+          var reply = (data2.content && data2.content.find(b => b.type === 'text')) ? data2.content.find(b => b.type === 'text').text : 'Calendario actualizado.';
+
+          chatHistory.push({ role: 'assistant', content: reply });
+          if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
+          loadingDiv.remove();
+          addMessage(reply, false);
+          return;
+        }
+      }
+
+      // Respuesta normal (sin tool use)
+      var reply = (data.content && data.content.find(b => b.type === 'text')) ? data.content.find(b => b.type === 'text').text : 'Sin respuesta.';
       chatHistory.push({ role: 'assistant', content: reply });
       if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
-
       loadingDiv.remove();
       addMessage(reply, false);
 
@@ -1536,7 +1685,7 @@ setInterval(loadDashboard, 300000);
         addMessage('API key invalida. Usa el icono de ajustes para actualizarla.', false);
         localStorage.removeItem(CHAT_KEY);
       } else {
-        addMessage('Error al conectar. Intenta de nuevo.', false);
+        addMessage('Error: ' + err.message, false);
       }
       console.error(err);
     } finally {
