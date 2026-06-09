@@ -554,6 +554,14 @@ let allActivities = [];
 let selectedId = null;
 
 function renderActivity(a) {
+  // Calcular aerobic decoupling desde splits
+  let splitsForDecoupling = a.splits_json;
+  if (typeof splitsForDecoupling === 'string') { try { splitsForDecoupling = JSON.parse(splitsForDecoupling); } catch(e) { splitsForDecoupling = []; } }
+  const dec = calcAerobicDecoupling(splitsForDecoupling);
+  const decText = dec !== null ? dec.toFixed(1) + '%' : '—';
+  const decColor = dec === null ? 'var(--muted)' : dec <= 5 ? 'var(--green)' : dec <= 10 ? 'var(--accent)' : 'var(--accent2)';
+  const decLabel = dec === null ? 'Sin datos' : dec <= 5 ? 'Acoplado ✓' : dec <= 10 ? 'Drift leve' : 'Drift alto ⚠';
+
   document.getElementById('activityCardTitle').textContent = selectedId ? `Entrenamiento — ${fd(a.fecha)}` : 'Último Entrenamiento';
   document.getElementById('lastActivity').innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -585,9 +593,43 @@ function renderActivity(a) {
           ${a.training_effect_anaerobico?(a.training_effect_anaerobico>=4.5?'Muy alto':a.training_effect_anaerobico>=3.5?'Alto':a.training_effect_anaerobico>=2.5?'Moderado':a.training_effect_anaerobico>=1?'Bajo':'Mínimo'):''}
         </div>
       </div>
+      <div class="act-stat" style="border:1px solid ${decColor}22;background:${decColor}08">
+        <div class="act-stat-val" style="font-size:22px;color:${decColor}">${decText}</div>
+        <div class="act-stat-lbl">Aerobic Decoupling</div>
+        <div style="font-size:10px;color:${decColor}">${decLabel}</div>
+      </div>
     </div>
+
+    <!-- Descripción e interpretación del Aerobic Decoupling -->
+    <div style="margin-top:14px;padding:12px 14px;background:#131313;border-radius:8px;border-left:3px solid ${decColor}">
+      <div style="font-size:9px;letter-spacing:2px;color:#555;text-transform:uppercase;margin-bottom:7px">¿Qué es el Aerobic Decoupling (Pa:HR)?</div>
+      <div style="font-size:12px;color:#999;line-height:1.7">
+        Mide cuánto sube tu FC <em>relativa al pace</em> entre la primera y segunda mitad de la carrera.
+        Si tu pace fue constante pero tu corazón trabajó más al final, hay cardiac drift.
+        Es la prueba más directa de si corriste en Z2 real o te pasaste.<br>
+        <span style="color:var(--green)">≤ 5%</span> — Aeróbico real. El sistema cardiovascular sostuvo el esfuerzo sin estrés extra.<br>
+        <span style="color:var(--accent)">5–10%</span> — Drift leve. Ritmo ligeramente elevado, calor, o fatiga acumulada.<br>
+        <span style="color:var(--accent2)">> 10%</span> — Drift alto. Corriste sobre tu umbral aeróbico o el calor/deshidratación fue un factor real.
+      </div>
+    </div>
+
     ${renderZones(a)}`;
   renderSplits(a);
+}
+
+// ── AEROBIC DECOUPLING ────────────────────────
+// Pa:HR — mide cuánto sube la FC relativa al pace entre la 1ª y 2ª mitad.
+// Fórmula: ((ratio_2a_mitad - ratio_1a_mitad) / ratio_1a_mitad) × 100
+// donde ratio = FC / pace (a mayor pace en min/km = más lento, la FC sube desproporcionado)
+function calcAerobicDecoupling(splits) {
+  const valid = (splits || []).filter(s => s.pace > 0 && s.fc_avg > 0);
+  if (valid.length < 4) return null;
+  const half = Math.floor(valid.length / 2);
+  const first = valid.slice(0, half);
+  const second = valid.slice(half);
+  const ratio = arr => arr.reduce((s, sp) => s + (sp.fc_avg / sp.pace), 0) / arr.length;
+  const r1 = ratio(first), r2 = ratio(second);
+  return ((r2 - r1) / r1 * 100);
 }
 
 function renderZones(a) {
