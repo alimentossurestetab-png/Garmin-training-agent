@@ -791,7 +791,7 @@ async function loadDashboard() {
   renderWeeklyZones(activities);
   if (!cachedPlanWorkouts) loadPlanWorkouts(); else renderCalendar();
   if (!selectedId) { renderActivity(latest); renderRunningDynamics(latest); }
-  renderHRVTrend();
+  renderHRVTrend(activities);
   renderHistoryTable(activities);
   renderVolumeChart(sorted);
   renderPaceChart(sorted);
@@ -1063,114 +1063,82 @@ async function renderRunningDynamics(activity) {
 }
 
 // ── HRV TREND ─────────────────────────────────
-async function renderHRVTrend() {
-  // Fetch real HRV data (ms) from training_status_history
-  let rawData = [];
-  try {
-    const result = await query('training_status_history', '?order=fecha.desc&limit=60');
-    rawData = Array.isArray(result) ? result : [];
-  } catch(e) { rawData = []; }
-
-  // Filter to entries with actual HRV ms values and reverse to chronological order
-  const dataPoints = rawData
-    .filter(d => d.hrv_weekly != null && parseFloat(d.hrv_weekly) > 0)
-    .reverse()
-    .map(d => ({
-      fecha: (d.fecha || d.created_at || '').slice(0, 10),
-      hrv: parseFloat(d.hrv_weekly)
+function renderHRVTrend(activities) {
+  const dataPoints = activities
+    .filter(a => a.fc_avg && a.training_load)
+    .slice(-20)
+    .map(a => ({
+      fecha: a.fecha.slice(0,10),
+      load: parseFloat(a.training_load) || 0,
+      fc: parseFloat(a.fc_avg) || 0,
     }));
 
-  if (dataPoints.length === 0) {
-    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos HRV aún — Garmin los sincronizará en el próximo ciclo.</div>';
-    document.getElementById('hrvStatusBadge').textContent = '';
+  if (dataPoints.length < 3) {
+    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Insuficientes datos para tendencia HRV</div>';
     return;
   }
 
-  // Si solo hay 1 punto, mostrarlo como valor actual sin gráfica de tendencia
-  if (dataPoints.length === 1) {
-    const v = dataPoints[0].hrv;
-    document.getElementById('hrvChartContainer').innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:6px">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--accent);letter-spacing:2px">${v} <span style="font-size:18px;opacity:0.6">ms</span></div>
-        <div style="font-size:10px;color:var(--muted)">${dataPoints[0].fecha} — acumulando historial para tendencia</div>
-      </div>`;
-    document.getElementById('hrvStatusBadge').textContent = '';
-    document.getElementById('hrvSummary').innerHTML = `<span style="color:var(--muted);font-size:11px">HRV real de Garmin · 1 registro disponible · próximo sync añadirá más puntos para tendencia</span>`;
-    return;
-  }
+  // Proxy HRV: FC más baja relativa al promedio = mejor recuperación
+  const avgFC = dataPoints.reduce((s,d) => s+d.fc, 0) / dataPoints.length;
+  const scores = dataPoints.map(d => Math.max(1, Math.min(10, 5 + (avgFC - d.fc) * 0.3)));
 
-  const values = dataPoints.map(d => d.hrv);
-
-  // Determine trend (compare last 5 vs previous 5)
-  const recentVals = values.slice(-5);
-  const olderVals  = values.slice(-10, -5);
-  const recentAvg  = recentVals.reduce((s,v)=>s+v,0) / recentVals.length;
-  const olderAvg   = olderVals.length ? olderVals.reduce((s,v)=>s+v,0) / olderVals.length : recentAvg;
+  // Determinar tendencia
+  const recentScores = scores.slice(-5);
+  const olderScores  = scores.slice(-10, -5);
+  const recentAvg = recentScores.reduce((s,v)=>s+v,0) / recentScores.length;
+  const olderAvg  = olderScores.length ? olderScores.reduce((s,v)=>s+v,0)/olderScores.length : recentAvg;
   const trend = recentAvg - olderAvg;
 
   let status, statusColor, statusDesc;
-  if (trend > 2) {
+  if (trend > 0.3) {
     status = 'UPWARD ↑'; statusColor = 'var(--green)';
-    statusDesc = 'Tu HRV está subiendo — el cuerpo se está adaptando bien. Momento óptimo para sesiones de calidad.';
-  } else if (trend < -2) {
+    statusDesc = 'Tu recuperación está mejorando. Momento óptimo para sesiones de calidad.';
+  } else if (trend < -0.3) {
     status = 'DOWNWARD ↓'; statusColor = 'var(--accent2)';
-    statusDesc = 'HRV a la baja. Señal de fatiga acumulada o estrés. Prioriza sueño e hidratación.';
+    statusDesc = 'Tendencia a la baja. Señal de fatiga acumulada. Prioriza sueño e hidratación.';
   } else {
     status = 'BALANCED →'; statusColor = 'var(--accent)';
     statusDesc = 'HRV estable. Buen equilibrio entre carga y recuperación. Mantén el plan.';
   }
 
-  // Update badge
   const badge = document.getElementById('hrvStatusBadge');
   badge.textContent = status;
   badge.style.background = statusColor + '22';
   badge.style.color = statusColor;
   badge.style.border = '1px solid ' + statusColor + '44';
 
-  // Draw SVG chart with real ms scale
-  const W=500, H=120, PL=38, PR=8, PT=10, PB=22;
+  // SVG con eje Y etiquetado
+  const W=500, H=120, PL=32, PR=8, PT=10, PB=22;
   const cW=W-PL-PR, cH=H-PT-PB;
-  const minV = Math.min(...values) - 2;
-  const maxV = Math.max(...values) + 2;
-  const xP = i => PL + (i / (values.length - 1)) * cW;
-  const yP = v => PT + ((maxV - v) / (maxV - minV)) * cH;
-  const pts  = values.map((v,i) => xP(i)+','+yP(v)).join(' ');
-  const area = 'M'+values.map((v,i)=>xP(i)+','+yP(v)).join('L')+'L'+xP(values.length-1)+','+(PT+cH)+'L'+xP(0)+','+(PT+cH)+'Z';
+  const minS = Math.min(...scores) - 0.5;
+  const maxS = Math.max(...scores) + 0.5;
+  const xP = i => PL + (i/(scores.length-1)) * cW;
+  const yP = v => PT + ((maxS-v)/(maxS-minS)) * cH;
+  const pts  = scores.map((s,i)=>xP(i)+','+yP(s)).join(' ');
+  const area = 'M'+scores.map((s,i)=>xP(i)+','+yP(s)).join('L')+'L'+xP(scores.length-1)+','+(PT+cH)+'L'+xP(0)+','+(PT+cH)+'Z';
+  const trendMid = scores.length > 5 ? xP(scores.length-5) : xP(0);
 
-  // Trend line
-  const trendMid = values.length > 5 ? xP(values.length - 5) : xP(0);
-  const trendY1  = yP(olderAvg);
-  const trendY2  = yP(recentAvg);
-
-  // Y axis: 4 evenly spaced ms ticks
-  const step = (maxV - minV) / 3;
-  const yTicks = [0,1,2,3].map(i => Math.round(minV + i * step));
+  // 3 ticks en el eje Y con valores reales del rango
+  const yTicks = [minS+0.5, (minS+maxS)/2, maxS-0.5].map(v => parseFloat(v.toFixed(1)));
 
   document.getElementById('hrvChartContainer').innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-      <!-- Y axis line -->
       <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${PT+cH}" stroke="#333" stroke-width="1"/>
-      <!-- Y axis ticks, gridlines, labels (ms) -->
       ${yTicks.map(v => `
         <line x1="${PL}" y1="${yP(v)}" x2="${PL+cW}" y2="${yP(v)}" stroke="#1e1e1e" stroke-width="1" stroke-dasharray="3,4"/>
         <text x="${PL-5}" y="${yP(v)+3}" fill="#555" font-size="8" font-family="DM Mono,monospace" text-anchor="end">${v}</text>
       `).join('')}
-      <!-- Y axis label -->
-      <text x="8" y="${PT + cH/2}" fill="#444" font-size="7" font-family="DM Mono,monospace" text-anchor="middle" transform="rotate(-90, 8, ${PT + cH/2})">ms</text>
-      <!-- Area + line -->
-      <path d="${area}" fill="${statusColor}10"/>
+      <text x="7" y="${PT+cH/2}" fill="#444" font-size="7" font-family="DM Mono,monospace" text-anchor="middle" transform="rotate(-90,7,${PT+cH/2})">HRV</text>
+      <path d="${area}" fill="${statusColor}08"/>
       <polyline points="${pts}" fill="none" stroke="${statusColor}" stroke-width="2" stroke-linejoin="round"/>
-      <!-- Trend line -->
-      <line x1="${trendMid}" y1="${trendY1}" x2="${xP(values.length-1)}" y2="${trendY2}" stroke="${statusColor}" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
-      <!-- Data points -->
-      ${values.map((v,i) => `<circle cx="${xP(i)}" cy="${yP(v)}" r="3" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5">
-        <title>${dataPoints[i].fecha} · HRV ${v} ms</title>
+      <line x1="${trendMid}" y1="${yP(olderAvg)}" x2="${xP(scores.length-1)}" y2="${yP(recentAvg)}" stroke="${statusColor}" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+      ${scores.map((s,i)=>`<circle cx="${xP(i)}" cy="${yP(s)}" r="3" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5">
+        <title>${dataPoints[i].fecha} · FC ${dataPoints[i].fc}bpm · Load ${Math.round(dataPoints[i].load)}</title>
       </circle>`).join('')}
-      <!-- X axis date labels -->
       ${dataPoints.map((d,i) => i%4===0||i===dataPoints.length-1 ? `<text x="${xP(i)}" y="${H-4}" fill="#444" font-size="8" font-family="DM Mono,monospace" text-anchor="middle">${d.fecha.slice(5)}</text>` : '').join('')}
     </svg>`;
 
-  document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">HRV semanal real (ms) de Garmin · ${dataPoints.length} registros · último: <strong style="color:${statusColor}">${values[values.length-1]} ms</strong> (${dataPoints[dataPoints.length-1].fecha})</span>`;
+  document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">Basado en tendencia de FC de las últimas ${dataPoints.length} actividades. HRV directo disponible cuando Garmin lo sincronice.</span>`;
 }
 
 // ── TRAINING STATUS ───────────────────────────
