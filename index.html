@@ -636,6 +636,7 @@ function renderSplits(activity) {
   // - Efecto anaeróbico muy alto (≥2.5) → intervalos
   // Nota: carreras con pendientes (alto stdDev, avgDist=1.0) y tempo con auto-lap NO se detectan como intervalos
   const isIntervals = (stdDev > 0.5 && avgDist < 0.95) || avgDist < 0.75 || anaerobic >= 2.5;
+  console.log('[Splits Debug]', { splits: valid.length, stdDev: stdDev.toFixed(3), avgDist: avgDist.toFixed(3), anaerobic, isIntervals, paces, distances });
 
   const titleEl = document.getElementById('splitsChart').closest('.card').querySelector('.card-title');
 
