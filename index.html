@@ -1067,15 +1067,15 @@ async function renderHRVTrend() {
   // Fetch real HRV data (ms) from training_status_history
   let rawData = [];
   try {
-    rawData = await query('training_status_history', '?order=fecha.desc&limit=28&hrv_weekly=not.is.null') || [];
+    rawData = await query('training_status_history', '?order=created_at.desc&limit=60') || [];
   } catch(e) {}
 
   // Filter to entries with actual HRV ms values and reverse to chronological order
   const dataPoints = rawData
-    .filter(d => d.hrv_weekly && parseFloat(d.hrv_weekly) > 0)
+    .filter(d => d.hrv_weekly != null && parseFloat(d.hrv_weekly) > 0)
     .reverse()
     .map(d => ({
-      fecha: (d.fecha || '').slice(0, 10),
+      fecha: (d.created_at || d.fecha || '').slice(0, 10),
       hrv: parseFloat(d.hrv_weekly)
     }));
 
