@@ -624,6 +624,32 @@ function renderSplits(activity) {
   }
   const valid = splits.filter(s => s.pace && s.pace > 0);
   const paces = valid.map(s => s.pace);
+  const avgPace = paces.reduce((a,b) => a+b, 0) / paces.length;
+  const stdDev = Math.sqrt(paces.reduce((a,b) => a + Math.pow(b - avgPace, 2), 0) / paces.length);
+  const distances = valid.map(s => parseFloat(s.distancia) || 1.0);
+  const avgDist = distances.reduce((a,b) => a+b, 0) / distances.length;
+  const anaerobic = parseFloat(activity.training_effect_anaerobico) || 0;
+
+  // Detectar intervalos:
+  // - Alta variación de pace Y segmentos no son todos 1km (lap manual, no auto-lap) → intervalos
+  // - Segmentos muy cortos independientemente del pace → intervalos
+  // - Efecto anaeróbico muy alto (≥2.5) → intervalos
+  // Nota: carreras con pendientes (alto stdDev, avgDist=1.0) y tempo con auto-lap NO se detectan como intervalos
+  const isIntervals = (stdDev > 0.5 && avgDist < 0.95) || avgDist < 0.75 || anaerobic >= 2.5;
+
+  const titleEl = document.getElementById('splitsChart').closest('.card').querySelector('.card-title');
+
+  if (isIntervals) {
+    titleEl.textContent = 'Splits por Intervalo';
+    _renderIntervalSplits(valid, avgPace);
+  } else {
+    titleEl.textContent = 'Splits por KM';
+    _renderKmSplits(valid);
+  }
+}
+
+function _renderKmSplits(valid) {
+  const paces = valid.map(s => s.pace);
   const minP = Math.min(...paces), maxP = Math.max(...paces);
   document.getElementById('splitsChart').innerHTML = `
     <div style="margin-bottom:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">Target sub-2:00: <span style="color:var(--accent)">5:41/km</span></div>
@@ -636,6 +662,62 @@ function renderSplits(activity) {
           <div class="split-bar-wrap">
             <div class="split-bar" style="width:${pct}%;background:${color}20;border-left:2px solid ${color}">
               <span class="split-pace" style="color:${color}">${p(s.pace)}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function _renderIntervalSplits(valid, avgPace) {
+  const paces = valid.map(s => s.pace);
+  const minP = Math.min(...paces), maxP = Math.max(...paces);
+  const FAST = avgPace - 0.35;  // más rápido que esto = intervalo
+  const SLOW = avgPace + 0.35;  // más lento que esto = recuperación
+
+  // Encontrar primer y último split rápido para delimitar warmup/cooldown
+  const firstFast = valid.findIndex(s => s.pace <= FAST);
+  const lastFast  = valid.map(s => s.pace <= FAST).lastIndexOf(true);
+
+  let intN = 0, recN = 0;
+  const labels = valid.map((s, i) => {
+    const dist = (parseFloat(s.distancia) || 1.0).toFixed(2) + 'km';
+    if (firstFast < 0) {
+      // Sin segmentos claramente rápidos → tratar como continuo
+      return { label: `km ${i+1}`, dist, color: 'var(--accent)' };
+    }
+    if (i < firstFast) {
+      return { label: 'WARM',     dist, color: '#555' };
+    }
+    if (i > lastFast && s.pace >= SLOW) {
+      return { label: 'COOL',     dist, color: '#555' };
+    }
+    if (s.pace <= FAST) {
+      intN++;
+      return { label: `INT ${intN}`, dist, color: 'var(--green)' };
+    }
+    recN++;
+    return { label: `REC ${recN}`, dist, color: 'var(--accent3)' };
+  });
+
+  document.getElementById('splitsChart').innerHTML = `
+    <div style="display:flex;gap:14px;margin-bottom:8px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);flex-wrap:wrap">
+      <span><span style="color:var(--green)">■</span> Intervalo</span>
+      <span><span style="color:var(--accent3)">■</span> Recuperación</span>
+      <span><span style="color:#555">■</span> Calentamiento / Enfriamiento</span>
+    </div>
+    <div class="splits-container">
+      ${valid.map((s, i) => {
+        const lbl = labels[i];
+        const pct = 25 + ((s.pace - minP) / (maxP - minP || 1)) * 70;
+        const fc = s.fc_avg ? ` <span style="color:#444;font-size:9px">· ${Math.round(s.fc_avg)}bpm</span>` : '';
+        return `<div class="split-row">
+          <div class="split-km" style="min-width:46px;width:46px;font-size:8px;line-height:1.3;text-align:right;color:${lbl.color}">
+            ${lbl.label}<br><span style="color:#444">${lbl.dist}</span>
+          </div>
+          <div class="split-bar-wrap">
+            <div class="split-bar" style="width:${pct}%;background:${lbl.color}18;border-left:2px solid ${lbl.color}">
+              <span class="split-pace" style="color:${lbl.color}">${p(s.pace)}</span>${fc}
             </div>
           </div>
         </div>`;
