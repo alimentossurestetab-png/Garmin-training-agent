@@ -90,13 +90,8 @@ def build_row(activity, splits_data):
     }
 
 def sync_activity(activity, garmin_client, supabase):
-    """Sincroniza una actividad: verifica duplicado, inserta y notifica a Make."""
+    """Sincroniza una actividad: inserta y notifica a Make."""
     garmin_id = str(activity.get("activityId", ""))
-
-    # Skip si ya existe
-    if supabase.table("actividades").select("id").eq("garmin_id", garmin_id).execute().data:
-        print(f"  → {garmin_id} ya existe, saltando.")
-        return
 
     splits_raw  = garmin_client.get_activity_splits(garmin_id)
     splits_data = build_splits(splits_raw)
@@ -134,8 +129,10 @@ def sync_activity(activity, garmin_client, supabase):
 def sync_training_status(garmin, supabase):
     """Jala el Training Status actual de Garmin y lo guarda en Supabase."""
     try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
         # Training readiness
-        readiness_data = garmin.get_training_readiness("")
+        readiness_data = garmin.get_training_readiness(today)
         readiness_score = None
         if readiness_data and isinstance(readiness_data, list) and len(readiness_data) > 0:
             readiness_score = readiness_data[0].get("overallScore") or readiness_data[0].get("score")
@@ -143,7 +140,7 @@ def sync_training_status(garmin, supabase):
             readiness_score = readiness_data.get("overallScore") or readiness_data.get("score")
 
         # Training status from stats
-        stats = garmin.get_stats(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        stats = garmin.get_stats(today)
         status = None
         acute_load = None
         chronic_load = None
@@ -154,7 +151,7 @@ def sync_training_status(garmin, supabase):
             chronic_load = safe_float(stats.get("chronicLoad") or stats.get("longTermLoad"), 1)
 
         # HRV weekly
-        hrv_data = garmin.get_hrv_data(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        hrv_data = garmin.get_hrv_data(today)
         hrv_weekly = None
         if hrv_data and isinstance(hrv_data, dict):
             hrv_weekly = safe_float(
@@ -163,7 +160,7 @@ def sync_training_status(garmin, supabase):
             )
 
         # VO2Max
-        vo2_data = garmin.get_max_metrics(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        vo2_data = garmin.get_max_metrics(today)
         vo2max = None
         if vo2_data and isinstance(vo2_data, list) and len(vo2_data) > 0:
             vo2max = safe_float(vo2_data[0].get("generic", {}).get("vo2MaxPreciseValue"), 1)
@@ -192,8 +189,10 @@ def main():
 
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+    # Ventana de 72h: si un día falla el workflow, la siguiente corrida
+    # recupera las actividades perdidas (el dedup evita duplicados).
     end   = datetime.now(timezone.utc)
-    start = end - timedelta(hours=25)
+    start = end - timedelta(hours=72)
 
     print(f"Buscando actividades: {start.strftime('%Y-%m-%d')} → {end.strftime('%Y-%m-%d')}")
     activities = garmin.get_activities_by_date(
@@ -205,21 +204,19 @@ def main():
     if not activities:
         print("Sin actividades nuevas.")
     else:
-        print(f"Encontradas {len(activities)} actividad(es), procesando...")
-        for activity in activities:
+        # Dedup en una sola query (en vez de un SELECT por actividad)
+        ids = [str(a.get("activityId", "")) for a in activities]
+        existing = supabase.table("actividades").select("garmin_id") \
+            .in_("garmin_id", ids).execute().data or []
+        existing_ids = {r["garmin_id"] for r in existing}
+        nuevas = [a for a in activities if str(a.get("activityId", "")) not in existing_ids]
+
+        print(f"Encontradas {len(activities)} actividad(es), {len(nuevas)} nueva(s).")
+        for activity in nuevas:
             sync_activity(activity, garmin, supabase)
-
-    # Siempre sincronizar training status
-    sync_training_status(garmin, supabase)
-    print("Sync completo.")
-
-    print(f"Encontradas {len(activities)} actividad(es), procesando...")
-    for activity in activities:
-        sync_activity(activity, garmin, supabase)
 
     # Sync training status (una vez por run, independiente de actividades)
     sync_training_status(garmin, supabase)
-
     print("Sync completo.")
 
 if __name__ == "__main__":

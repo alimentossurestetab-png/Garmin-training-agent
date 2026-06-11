@@ -2,7 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com https://api.anthropic.com data: blob:;">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Training HQ</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co https://api.anthropic.com;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0a0a0a;--surface:#111;--surface2:#1a1a1a;--border:#222;
@@ -386,10 +391,27 @@ const DEFAULT_RACES = [
 ];
 
 async function query(table, params = '') {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
-    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-  });
-  return r.json();
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!r.ok) {
+      console.error(`Supabase ${table}: HTTP ${r.status}`, await r.text());
+      return [];
+    }
+    return await r.json();
+  } catch (e) {
+    console.error(`Supabase ${table}:`, e);
+    return [];
+  }
+}
+
+// Escapa HTML antes de insertar datos externos vía innerHTML (previene XSS)
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function p(dec) {
@@ -422,10 +444,10 @@ function renderRaceList() {
   document.getElementById('raceList').innerHTML = races.length ? races.map((r,i) => `
     <div style="background:#1a1a1a;border:1px solid #222;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--accent)">${r.name}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;color:var(--accent)">${esc(r.name)}</div>
         <div style="font-family:'DM Mono',monospace;font-size:10px;color:#666;margin-top:2px">
           ${new Date(r.date+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
-          · Base: ${r.objetivo}
+          · Base: ${esc(r.objetivo)}
         </div>
       </div>
       <div onclick="deleteRace(${i})" style="color:#444;cursor:pointer;font-size:16px;padding:4px 8px">✕</div>
@@ -477,9 +499,9 @@ function updateCountdown() {
     <div class="countdown-item"><div class="countdown-num">${mins}</div><div class="countdown-label">mins</div></div>`;
 
   document.getElementById('raceTargets').innerHTML = `
-    <div class="target-chip target-base">Base: ${upcoming.objetivo}</div>
-    <div class="target-chip target-stretch">Stretch: ${upcoming.stretch}</div>
-    <div class="target-chip target-dream">Dream: ${upcoming.dream}</div>
+    <div class="target-chip target-base">Base: ${esc(upcoming.objetivo)}</div>
+    <div class="target-chip target-stretch">Stretch: ${esc(upcoming.stretch)}</div>
+    <div class="target-chip target-dream">Dream: ${esc(upcoming.dream)}</div>
     <div class="target-chip btn-races" onclick="openRaceManager()">⚙ Carreras</div>`;
 }
 
@@ -793,7 +815,7 @@ function clearSelection() {
 
 function renderAnalysis(analyses) {
   if (analyses && analyses.length > 0 && analyses[0].resumen) {
-    let text = analyses[0].resumen;
+    let text = esc(analyses[0].resumen); // escapar antes de procesar markdown
     text = text.split('### ').join('').split('## ').join('').split('# ').join('');
     let bp = text.split('**');
     text = bp.map((part, i) => i%2===1 ? '<strong>'+part+'</strong>' : part).join('');
@@ -882,7 +904,7 @@ function renderHistoryTable(activities) {
 
 // ── MAIN LOAD ─────────────────────────────────
 async function loadDashboard() {
-  const activities = await query('actividades', '?order=fecha.desc&limit=100');
+  const activities = await query('actividades', '?order=fecha.desc&limit=500');
   if (!activities || !activities.length) return;
   allActivities = activities;
   const latest = activities[0];
@@ -914,7 +936,7 @@ async function loadDashboard() {
 
   calActivities = activities;
   renderWeeklyZones(activities);
-  if (!cachedPlanWorkouts) loadPlanWorkouts(); else renderCalendar();
+  if (cachedPlanWorkouts) renderCalendar(); // la carga inicial la hace loadPlanWorkouts()
   if (!selectedId) { renderActivity(latest); renderRunningDynamics(latest); }
   renderHRVTrend(activities);
   renderHistoryTable(activities);
@@ -1081,15 +1103,9 @@ async function renderRunningDynamics(activity) {
     return;
   }
 
-  // Fetch last 30 days for personal baseline
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const history = await query('actividades',
-    `?order=fecha.desc&limit=60&select=fecha,ground_contact_time,vertical_oscillation,stride_length,vertical_ratio,avg_power,distancia_km,tipo`
-  );
-
-  // Filter to activities with dynamics data (exclude current)
-  const withDynamics = (history || []).filter(a =>
+  // Baseline personal desde los datos ya cargados (sin query extra).
+  // Excluye la actividad actual para no compararla contra sí misma.
+  const withDynamics = (allActivities || []).slice(0, 60).filter(a =>
     a.garmin_id !== activity.garmin_id &&
     a.ground_contact_time && a.vertical_oscillation
   );
@@ -1447,8 +1463,8 @@ function renderCalendar() {
         if (acts.length > 0) return; // already ran
         const c = typeColor(pl.type);
         content += `<div style="background:${c.bg};border:1px dashed ${c.border};border-radius:4px;padding:3px 5px;margin-bottom:2px">
-          <div style="font-family:'DM Mono',monospace;font-size:9px;color:${c.text}">${pl.type}${pl.km>0?' · '+pl.km+'km':''}</div>
-          <div style="font-size:9px;color:#555">${pl.desc}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:${c.text}">${esc(pl.type)}${pl.km>0?' · '+esc(pl.km)+'km':''}</div>
+          <div style="font-size:9px;color:#555">${esc(pl.desc)}</div>
         </div>`;
       });
     }
@@ -1619,7 +1635,7 @@ async function updatePlanDay(fecha, tipo, descripcion, km, pace_objetivo, comple
       ? 'background:rgba(232,255,60,.1);border:1px solid rgba(232,255,60,.2);border-radius:10px;padding:10px 14px;font-size:13px;color:#e8ff3c;line-height:1.5;align-self:flex-end;max-width:90%'
       : 'background:#1a1a1a;border:1px solid #222;border-radius:10px;padding:10px 14px;font-size:13px;color:#ccc;line-height:1.6;max-width:95%';
     if (!isUser) {
-      var html = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f0f0f0">$1</strong>');
+      var html = esc(text).replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f0f0f0">$1</strong>');
       html = html.replace(/\n\n/g, '<br><br>').replace(/\n- /g, '<br>- ').replace(/\n/g, '<br>');
       div.innerHTML = html;
     } else {
