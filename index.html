@@ -191,9 +191,14 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 
     <!-- Distribución de zonas FC semana -->
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div class="card-title">Distribución Zonas FC — Esta Semana</div>
-        <div id="weekZonesTotalTime" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div class="card-title">Distribución Zonas FC</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div id="weekZonesTotalTime" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)"></div>
+          <div onclick="prevZonesWeek()" style="cursor:pointer;color:var(--muted);font-size:16px;padding:0 8px;border:1px solid var(--border);border-radius:6px;line-height:22px">‹</div>
+          <div id="zonesWeekLabel" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text);min-width:110px;text-align:center"></div>
+          <div id="zonesWeekNext" onclick="nextZonesWeek()" style="cursor:pointer;color:var(--muted);font-size:16px;padding:0 8px;border:1px solid var(--border);border-radius:6px;line-height:22px">›</div>
+        </div>
       </div>
       <div id="weekZonesChart"></div>
       <div id="weekZonesRecommendation" style="margin-top:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.6;color:#aaa"></div>
@@ -201,7 +206,10 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
 
     <!-- Carga semanal acumulada -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:16px">Carga Semanal Acumulada</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="card-title">Carga Semanal Acumulada</div>
+        <div id="weekLoadWeekLabel" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)"></div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
         <div class="act-stat">
           <div class="act-stat-val" id="weekTotalLoad" style="color:var(--accent)">—</div>
@@ -330,6 +338,27 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
     </div>
   </div>
 
+  <!-- EFICIENCIA AERÓBICA (EF) -->
+  <div class="grid-3">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="card-title">Eficiencia Aeróbica — Velocidad por Latido (EF)</div>
+        <div id="efBadge" style="padding:3px 12px;border-radius:20px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px"></div>
+      </div>
+      <div style="height:170px" id="efChart"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px">Tu Eficiencia</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="act-stat"><div class="act-stat-val" id="efCurrent" style="color:var(--accent)">—</div><div class="act-stat-lbl">EF último rodaje</div></div>
+        <div class="act-stat"><div class="act-stat-val" id="efBest" style="color:var(--green)">—</div><div class="act-stat-lbl">Tu mejor EF</div></div>
+        <div class="act-stat"><div class="act-stat-val" id="efBeats">—</div><div class="act-stat-lbl">Latidos por km</div></div>
+        <div class="act-stat"><div class="act-stat-val" id="efTrend">—</div><div class="act-stat-lbl">Tendencia</div></div>
+      </div>
+      <div id="efSummary" style="font-size:12px;color:#aaa;line-height:1.6;padding:10px 12px;background:var(--surface2);border-radius:8px"></div>
+    </div>
+  </div>
+
   <!-- ANALYSIS + HISTORY -->
   <div class="grid-2">
     <div class="card">
@@ -420,8 +449,32 @@ function p(dec) {
   return `${m}:${s.toString().padStart(2,'0')}`;
 }
 
+// Parseo robusto de fechas de Supabase ("2026-07-04 11:50:52+00").
+// Safari no acepta ese formato — se normaliza a ISO. Devuelve Date en hora local.
+function parseFecha(fecha) {
+  if (fecha instanceof Date) return fecha;
+  let s = String(fecha || '').trim().replace(' ', 'T');
+  if (/[+-]\d{2}$/.test(s)) s += ':00';
+  const d = new Date(s);
+  return isNaN(d) ? new Date(String(fecha)) : d;
+}
+
+// Lunes 00:00 (hora local) de la semana que contiene la fecha dada.
+// TODAS las semanas de la app inician en lunes y terminan en domingo.
+function mondayOf(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1));
+  return d;
+}
+
+// Fecha local YYYY-MM-DD (toISOString convierte a UTC y corre el día — no usar para keys)
+function localKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
 function fd(iso) {
-  return new Date(iso).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
+  return parseFecha(iso).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
 }
 
 // ── RACE MANAGER ──────────────────────────────
@@ -536,22 +589,18 @@ function renderTrainingPlan(activities) {
   document.getElementById('phaseBadge').className = `phase-badge ${phaseClass}`;
   document.getElementById('planSummary').textContent = phaseDesc;
 
-  // Build week grid from activities
+  // Build week grid from activities (semanas lunes-domingo)
   const weeks = {};
   activities.forEach(a => {
-    const d = new Date(a.fecha);
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1));
-    const key = monday.toISOString().slice(0,10);
+    const monday = mondayOf(parseFecha(a.fecha));
+    const key = localKey(monday);
     if (!weeks[key]) weeks[key] = { km: 0, runs: 0, date: monday };
     weeks[key].km += parseFloat(a.distancia_km) || 0;
     weeks[key].runs++;
   });
 
   const weekKeys = Object.keys(weeks).sort().slice(-12);
-  const todayMonday = new Date();
-  todayMonday.setDate(todayMonday.getDate() - (todayMonday.getDay() === 0 ? 6 : todayMonday.getDay() - 1));
-  const currentKey = todayMonday.toISOString().slice(0,10);
+  const currentKey = localKey(mondayOf(new Date()));
 
   const phaseColors = { 'TAPER FINAL':'var(--accent)', 'TAPER':'var(--accent)', 'CONSTRUCCIÓN':'var(--accent3)', 'BASE AERÓBICA':'var(--green)' };
   const dotColor = phaseColors[phase] || 'var(--muted)';
@@ -837,14 +886,12 @@ async function loadAnalysis() {
 function renderVolumeChart(activities) {
   const weeks = {};
   activities.forEach(a => {
-    const d = new Date(a.fecha);
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - (d.getDay()===0?6:d.getDay()-1));
-    const key = monday.toISOString().slice(0,10);
+    const monday = mondayOf(parseFecha(a.fecha));
+    const key = localKey(monday);
     if (!weeks[key]) weeks[key] = { km:0, label:monday.toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) };
     weeks[key].km += parseFloat(a.distancia_km)||0;
   });
-  const data = Object.values(weeks).slice(-10);
+  const data = Object.keys(weeks).sort().map(k => weeks[k]).slice(-10);
   const maxKm = Math.max(...data.map(w=>w.km));
   document.getElementById('volumeChart').innerHTML = data.map((w,i) => {
     const pct = (w.km/maxKm*100);
@@ -902,6 +949,98 @@ function renderHistoryTable(activities) {
   }).join('');
 }
 
+// ── EFICIENCIA AERÓBICA (EF) ──────────────────
+// EF = velocidad (m/min) / FC promedio → metros que avanzas por latido.
+// Si el EF sube en el tiempo = mejora aeróbica real: más pace a la misma FC.
+// Solo compara rodajes aeróbicos (FC avg < 155 y TE anaeróbico < 2.5) para
+// excluir intervalos y carreras, que distorsionan la relación pace/FC.
+function calcEF(pace, fc) { return (1000 / pace) / fc; }
+
+function renderEfficiency(activities) {
+  const runs = activities
+    .filter(a => {
+      const pace = parseFloat(a.pace_avg), fc = parseFloat(a.fc_avg);
+      const anae = parseFloat(a.training_effect_anaerobico) || 0;
+      return pace > 0 && fc > 90 && fc < 155 && anae < 2.5;
+    })
+    .slice(-20)
+    .map(a => ({
+      fecha: a.fecha,
+      pace: parseFloat(a.pace_avg),
+      fc: parseFloat(a.fc_avg),
+      ef: calcEF(parseFloat(a.pace_avg), parseFloat(a.fc_avg)),
+      bpk: Math.round(parseFloat(a.fc_avg) * parseFloat(a.pace_avg)),
+    }));
+
+  if (runs.length < 4) {
+    document.getElementById('efChart').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:30px">Se necesitan al menos 4 rodajes aeróbicos (FC promedio < 155) para calcular la tendencia.</div>';
+    document.getElementById('efSummary').textContent = 'El EF compara solo rodajes suaves entre sí — intervalos y carreras se excluyen automáticamente.';
+    return;
+  }
+
+  // Tendencia: promedio de la mitad reciente vs la mitad anterior
+  const half = Math.floor(runs.length / 2);
+  const avgEF = arr => arr.reduce((s, r) => s + r.ef, 0) / arr.length;
+  const older = avgEF(runs.slice(0, half));
+  const recent = avgEF(runs.slice(half));
+  const deltaPct = ((recent - older) / older) * 100;
+
+  let status, statusColor, desc;
+  if (deltaPct > 1.5) {
+    status = 'MEJORANDO ↑'; statusColor = 'var(--green)';
+    desc = 'Tu motor aeróbico está mejorando: produces más velocidad por cada latido que hace unas semanas. Esto es fitness real, independiente de la motivación del día.';
+  } else if (deltaPct < -1.5) {
+    status = 'BAJANDO ↓'; statusColor = 'var(--accent2)';
+    desc = 'EF a la baja. Causas típicas: fatiga acumulada, calor/humedad, o rodajes más exigentes de lo que parecen. Si coincide con HRV baja, prioriza recuperación.';
+  } else {
+    status = 'ESTABLE →'; statusColor = 'var(--accent)';
+    desc = 'EF estable. Mantienes tu eficiencia — normal en taper o semanas de mantenimiento. Las mejoras aeróbicas se ven en bloques de 4-8 semanas.';
+  }
+
+  const badge = document.getElementById('efBadge');
+  badge.textContent = status;
+  badge.style.background = statusColor + '22';
+  badge.style.color = statusColor;
+  badge.style.border = '1px solid ' + statusColor + '44';
+
+  const last = runs[runs.length - 1];
+  const best = runs.reduce((m, r) => r.ef > m.ef ? r : m, runs[0]);
+  document.getElementById('efCurrent').textContent = last.ef.toFixed(2);
+  document.getElementById('efBest').textContent = best.ef.toFixed(2);
+  document.getElementById('efBeats').textContent = last.bpk;
+  const trendEl = document.getElementById('efTrend');
+  trendEl.textContent = (deltaPct >= 0 ? '+' : '') + deltaPct.toFixed(1) + '%';
+  trendEl.style.color = statusColor;
+
+  // Gráfica SVG
+  const W = 600, H = 160, PL = 44, PR = 14, PT = 10, PB = 26;
+  const cW = W - PL - PR, cH = H - PT - PB;
+  const efs = runs.map(r => r.ef);
+  const minE = Math.min(...efs) - 0.02, maxE = Math.max(...efs) + 0.02;
+  const xP = i => PL + (i / (runs.length - 1)) * cW;
+  const yP = v => PT + ((maxE - v) / (maxE - minE)) * cH;
+  const pts = runs.map((r, i) => xP(i) + ',' + yP(r.ef)).join(' ');
+  const area = 'M' + runs.map((r, i) => xP(i) + ',' + yP(r.ef)).join('L') +
+    'L' + xP(runs.length - 1) + ',' + (PT + cH) + 'L' + xP(0) + ',' + (PT + cH) + 'Z';
+  const yTicks = [minE + 0.02, (minE + maxE) / 2, maxE - 0.02];
+  const step = Math.ceil(runs.length / 5);
+
+  document.getElementById('efChart').innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+      ${yTicks.map(v => `<line x1="${PL}" y1="${yP(v)}" x2="${W-PR}" y2="${yP(v)}" stroke="#1e1e1e" stroke-width="1"/><text x="${PL-5}" y="${yP(v)+3}" fill="#444" font-size="9" font-family="DM Mono,monospace" text-anchor="end">${v.toFixed(2)}</text>`).join('')}
+      ${runs.map((r, i) => i % step === 0 || i === runs.length-1 ? `<text x="${xP(i)}" y="${PT+cH+16}" fill="#444" font-size="8" font-family="DM Mono,monospace" text-anchor="middle">${new Date(r.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</text>` : '').join('')}
+      <line x1="${PL}" y1="${yP(best.ef)}" x2="${W-PR}" y2="${yP(best.ef)}" stroke="#3cffa0" stroke-width="1" stroke-dasharray="5,4" opacity=".4"/>
+      <path d="${area}" fill="${statusColor}0a"/>
+      <polyline points="${pts}" fill="none" stroke="${statusColor}" stroke-width="2" stroke-linejoin="round"/>
+      ${runs.map((r, i) => `<circle cx="${xP(i)}" cy="${yP(r.ef)}" r="3.5" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5"><title>${new Date(r.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'short'})} — EF ${r.ef.toFixed(2)} · ${p(r.pace)}/km a ${Math.round(r.fc)}bpm · ${r.bpk} latidos/km</title></circle>`).join('')}
+    </svg>`;
+
+  document.getElementById('efSummary').innerHTML =
+    `<strong style="color:${statusColor}">${status}</strong> — ${desc}<br>` +
+    `<span style="color:var(--muted);font-size:11px">EF = metros por minuto ÷ FC. Tu último rodaje: ${p(last.pace)}/km a ${Math.round(last.fc)}bpm = ${last.ef.toFixed(2)} (${last.bpk} latidos/km). ` +
+    `Basado en tus últimos ${runs.length} rodajes aeróbicos — intervalos y carreras excluidos.</span>`;
+}
+
 // ── MAIN LOAD ─────────────────────────────────
 async function loadDashboard() {
   const activities = await query('actividades', '?order=fecha.desc&limit=500');
@@ -926,10 +1065,8 @@ async function loadDashboard() {
   document.getElementById('avgPace').textContent = p(avgP);
   document.getElementById('weekLoad').textContent = latest.training_load ? Math.round(latest.training_load) : '—';
 
-  const today = new Date();
-  const dow = today.getDay()===0?6:today.getDay()-1;
-  const weekStart = new Date(today); weekStart.setDate(today.getDate()-dow); weekStart.setHours(0,0,0,0);
-  const weekActs = activities.filter(a=>new Date(a.fecha)>=weekStart);
+  const weekStart = mondayOf(new Date());
+  const weekActs = activities.filter(a=>parseFecha(a.fecha)>=weekStart);
   const weekKm = weekActs.reduce((s,a)=>s+(parseFloat(a.distancia_km)||0),0);
   document.getElementById('weekKm').textContent = weekKm.toFixed(1);
   document.getElementById('weekKmDelta').textContent = weekActs.length+' actividad'+(weekActs.length!==1?'es':'')+' esta semana';
@@ -942,24 +1079,54 @@ async function loadDashboard() {
   renderHistoryTable(activities);
   renderVolumeChart(sorted);
   renderPaceChart(sorted);
+  renderEfficiency(sorted);
   renderTrainingPlan(sorted);
   if (!selectedId) loadAnalysis();
 }
 
 // ── WEEKLY ZONES & LOAD ───────────────────────
+let zonesWeekOffset = 0; // 0 = semana actual, 1 = anterior, etc.
+
+function prevZonesWeek() {
+  zonesWeekOffset++;
+  renderWeeklyZones(allActivities);
+}
+function nextZonesWeek() {
+  if (zonesWeekOffset === 0) return;
+  zonesWeekOffset--;
+  renderWeeklyZones(allActivities);
+}
+
 function renderWeeklyZones(activities) {
-  const today = new Date();
-  const dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - dow);
-  weekStart.setHours(0, 0, 0, 0);
+  // Semana lunes-domingo: lunes de la semana actual menos el offset de navegación
+  const weekStart = mondayOf(new Date());
+  weekStart.setDate(weekStart.getDate() - zonesWeekOffset * 7);
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7);
 
   const prevWeekStart = new Date(weekStart);
   prevWeekStart.setDate(weekStart.getDate() - 7);
 
-  const weekActs = activities.filter(a => new Date(a.fecha) >= weekStart);
+  const isCurrentWeek = zonesWeekOffset === 0;
+
+  // Label de la semana mostrada (lun – dom)
+  const fmtShort = d => d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+  const weekLabel = isCurrentWeek
+    ? 'Esta semana'
+    : fmtShort(weekStart) + ' – ' + fmtShort(new Date(weekEnd - 86400000));
+  document.getElementById('zonesWeekLabel').textContent = weekLabel;
+  document.getElementById('weekLoadWeekLabel').textContent = weekLabel;
+  const nextBtn = document.getElementById('zonesWeekNext');
+  nextBtn.style.opacity = isCurrentWeek ? '.25' : '1';
+  nextBtn.style.pointerEvents = isCurrentWeek ? 'none' : 'auto';
+
+  const weekActs = activities.filter(a => {
+    const d = parseFecha(a.fecha);
+    return d >= weekStart && d < weekEnd;
+  });
   const prevWeekActs = activities.filter(a => {
-    const d = new Date(a.fecha);
+    const d = parseFecha(a.fecha);
     return d >= prevWeekStart && d < weekStart;
   });
 
@@ -999,7 +1166,9 @@ function renderWeeklyZones(activities) {
 
   // Render zones chart
   if (totalSecs === 0) {
-    document.getElementById('weekZonesChart').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de zonas esta semana</div>';
+    document.getElementById('weekZonesTotalTime').textContent = '';
+    document.getElementById('weekZonesChart').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Sin datos de zonas ' + (isCurrentWeek ? 'esta semana' : 'en esta semana') + '</div>';
+    document.getElementById('weekZonesRecommendation').textContent = isCurrentWeek ? '📅 Sin entrenamientos esta semana aún.' : '📅 Semana sin entrenamientos registrados.';
   } else {
     document.getElementById('weekZonesTotalTime').textContent = secToMin(totalSecs) + ' total';
     document.getElementById('weekZonesChart').innerHTML = zoneInfo.map((z, i) => {
@@ -1063,6 +1232,9 @@ function renderWeeklyZones(activities) {
     const sign = loadPct >= 0 ? '+' : '';
     document.getElementById('weekLoadDelta').textContent = sign + loadPct.toFixed(0) + '% vs semana anterior (' + Math.round(prevLoad) + ')';
     document.getElementById('weekLoadDelta').style.color = loadPct > 20 ? 'var(--accent2)' : loadPct > 0 ? 'var(--accent)' : 'var(--accent3)';
+  } else {
+    document.getElementById('weekLoadDelta').textContent = 'Sin datos de la semana anterior';
+    document.getElementById('weekLoadDelta').style.color = 'var(--muted)';
   }
 
   // Aerobic/Anaerobic balance
@@ -1076,12 +1248,17 @@ function renderWeeklyZones(activities) {
     document.getElementById('balanceAnaero').style.width = anaeroPct + '%';
     document.getElementById('balanceAeroLabel').textContent = 'Aeróbico ' + aeroPct + '%';
     document.getElementById('balanceAnaeroLabel').textContent = 'Anaeróbico ' + anaeroPct + '%';
+  } else {
+    document.getElementById('balanceAero').style.width = '0%';
+    document.getElementById('balanceAnaero').style.width = '0%';
+    document.getElementById('balanceAeroLabel').textContent = 'Aeróbico';
+    document.getElementById('balanceAnaeroLabel').textContent = 'Anaeróbico';
   }
 
   // Load recommendation
   let loadRec = '';
   if (totalLoad === 0) {
-    loadRec = '📅 Sin carga registrada esta semana.';
+    loadRec = isCurrentWeek ? '📅 Sin carga registrada esta semana.' : '📅 Sin carga registrada en esa semana.';
   } else if (totalLoad > 400) {
     loadRec = '🔴 Carga muy alta esta semana. Prioriza recuperación y sueño. Considera reducir la intensidad del próximo entreno.';
   } else if (totalLoad > 280) {
@@ -1406,7 +1583,7 @@ function renderCalendar() {
   // Build activity map for this month
   const actMap = {};
   calActivities.forEach(a => {
-    const d = a.fecha.slice(0,10);
+    const d = localKey(parseFecha(a.fecha)); // día local real (el slice UTC corría entrenos nocturnos al día siguiente)
     if (!actMap[d]) actMap[d] = [];
     actMap[d].push(a);
   });
@@ -1651,12 +1828,8 @@ async function updatePlanDay(fecha, tipo, descripcion, km, pace_objetivo, comple
     var plan = await window.query('plan_entrenos', '?order=semana.asc') || [];
     var tsData = await window.query('training_status_history', '?order=fecha.desc&limit=1') || [];
 
-    var today = new Date();
-    var dow = today.getDay() === 0 ? 6 : today.getDay() - 1;
-    var weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - dow);
-    weekStart.setHours(0,0,0,0);
-    var weekActs = acts.filter(function(a) { return new Date(a.fecha) >= weekStart; });
+    var weekStart = mondayOf(new Date());
+    var weekActs = acts.filter(function(a) { return parseFecha(a.fecha) >= weekStart; });
 
     function dp(dec) {
       if (!dec) return '-';
