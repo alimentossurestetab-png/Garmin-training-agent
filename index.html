@@ -1665,7 +1665,23 @@ async function loadTrainingStatus() {
     const data = await query('training_status_history', '?order=fecha.desc&limit=30');
     if (!data || !data.length) return;
 
-    const ts = data[0];
+    // La fila de hoy puede venir con campos null (Garmin no siempre reporta todo
+    // en cada sync). Tomar el valor no-null MÁS RECIENTE de cada campo.
+    const latestOf = field => {
+      const row = data.find(r => r[field] !== null && r[field] !== undefined && r[field] !== '');
+      return row ? row[field] : null;
+    };
+    const ts = {
+      status:       latestOf('status'),
+      readiness:    latestOf('readiness'),
+      hrv_weekly:   latestOf('hrv_weekly'),
+      acute_load:   null,
+      chronic_load: null,
+    };
+    // ACWR: par aguda/crónica de la misma fila (mezclarlas daría un ratio falso)
+    const acwrRow = data.find(r => r.acute_load && r.chronic_load);
+    if (acwrRow) { ts.acute_load = acwrRow.acute_load; ts.chronic_load = acwrRow.chronic_load; }
+
     renderHRVReal(data);
     renderACWR(ts);
     if (!ts.status && !ts.readiness) return;
