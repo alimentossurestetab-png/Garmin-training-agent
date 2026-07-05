@@ -173,10 +173,11 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
       <div class="stat-value" id="avgPace">—</div>
       <div class="stat-unit">últimas 4 semanas</div>
     </div>
-    <div class="stat-card" style="--accent-color:#a855f7">
-      <div class="stat-label">Training Load</div>
-      <div class="stat-value" id="weekLoad">—</div>
-      <div class="stat-unit">último entreno</div>
+    <div class="stat-card" style="--accent-color:#a855f7" title="ACWR = carga aguda (7 días) ÷ carga crónica (28 días). 0.8–1.3 es la zona óptima; >1.5 indica riesgo de lesión.">
+      <div class="stat-label">ACWR Carga</div>
+      <div class="stat-value" id="acwrValue">—</div>
+      <div class="stat-unit">aguda ÷ crónica</div>
+      <div class="stat-delta" id="acwrZone" style="color:var(--muted)"></div>
     </div>
     <div class="stat-card" style="--accent-color:var(--green)">
       <div class="stat-label">KM esta semana</div>
@@ -266,7 +267,7 @@ main{padding:24px 28px;max-width:1400px;margin:0 auto;}
     <!-- HRV Trend -->
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div class="card-title">HRV Status — Últimas 4 Semanas</div>
+        <div class="card-title">HRV Semanal — Dato Real de Garmin</div>
         <div id="hrvStatusBadge" style="padding:3px 12px;border-radius:20px;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:2px"></div>
       </div>
       <div id="hrvChartContainer" style="height:120px;margin-bottom:12px"></div>
@@ -671,10 +672,10 @@ function renderActivity(a) {
       </div>
     </div>
 
-    <!-- Descripción e interpretación del Aerobic Decoupling -->
-    <div style="margin-top:14px;padding:12px 14px;background:#131313;border-radius:8px;border-left:3px solid ${decColor}">
-      <div style="font-size:9px;letter-spacing:2px;color:#555;text-transform:uppercase;margin-bottom:7px">¿Qué es el Aerobic Decoupling (Pa:HR)?</div>
-      <div style="font-size:12px;color:#999;line-height:1.7">
+    <!-- Descripción e interpretación del Aerobic Decoupling (colapsable) -->
+    <details style="margin-top:14px;background:#131313;border-radius:8px;border-left:3px solid ${decColor}">
+      <summary style="cursor:pointer;padding:10px 14px;font-size:9px;letter-spacing:2px;color:#666;text-transform:uppercase;list-style:none">¿Qué es el Aerobic Decoupling (Pa:HR)? ▸</summary>
+      <div style="padding:0 14px 12px;font-size:12px;color:#999;line-height:1.7">
         Mide cuánto sube tu FC <em>relativa al pace</em> entre la primera y segunda mitad de la carrera.
         Si tu pace fue constante pero tu corazón trabajó más al final, hay cardiac drift.
         Es la prueba más directa de si corriste en Z2 real o te pasaste.<br>
@@ -682,7 +683,7 @@ function renderActivity(a) {
         <span style="color:var(--accent)">5–10%</span> — Drift leve. Ritmo ligeramente elevado, calor, o fatiga acumulada.<br>
         <span style="color:var(--accent2)">> 10%</span> — Drift alto. Corriste sobre tu umbral aeróbico o el calor/deshidratación fue un factor real.
       </div>
-    </div>
+    </details>
 
     ${renderZones(a)}`;
   renderSplits(a);
@@ -1063,7 +1064,6 @@ async function loadDashboard() {
   const fourW = activities.filter(a=>(new Date()-new Date(a.fecha))<28*86400000);
   const avgP = fourW.filter(a=>a.pace_avg).reduce((s,a,_,arr)=>s+a.pace_avg/arr.length,0);
   document.getElementById('avgPace').textContent = p(avgP);
-  document.getElementById('weekLoad').textContent = latest.training_load ? Math.round(latest.training_load) : '—';
 
   const weekStart = mondayOf(new Date());
   const weekActs = activities.filter(a=>parseFecha(a.fecha)>=weekStart);
@@ -1075,7 +1075,6 @@ async function loadDashboard() {
   renderWeeklyZones(activities);
   if (cachedPlanWorkouts) renderCalendar(); // la carga inicial la hace loadPlanWorkouts()
   if (!selectedId) { renderActivity(latest); renderRunningDynamics(latest); }
-  renderHRVTrend(activities);
   renderHistoryTable(activities);
   renderVolumeChart(sorted);
   renderPaceChart(sorted);
@@ -1380,42 +1379,38 @@ async function renderRunningDynamics(activity) {
   `;
 }
 
-// ── HRV TREND ─────────────────────────────────
-function renderHRVTrend(activities) {
-  const dataPoints = activities
-    .filter(a => a.fc_avg && a.training_load)
-    .slice(-20)
-    .map(a => ({
-      fecha: a.fecha.slice(0,10),
-      load: parseFloat(a.training_load) || 0,
-      fc: parseFloat(a.fc_avg) || 0,
-    }));
+// ── HRV REAL (hrv_weekly de Garmin vía training_status_history) ──────────────
+function renderHRVReal(rows) {
+  const dataPoints = (rows || [])
+    .filter(r => r.hrv_weekly)
+    .map(r => ({
+      fecha: String(r.fecha || '').slice(0, 10),
+      hrv: parseFloat(r.hrv_weekly),
+    }))
+    .reverse(); // llegan desc → cronológico
 
   if (dataPoints.length < 3) {
-    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Insuficientes datos para tendencia HRV</div>';
+    document.getElementById('hrvChartContainer').innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Aún no hay suficientes datos de HRV sincronizados desde Garmin.</div>';
+    document.getElementById('hrvSummary').textContent = 'El HRV semanal se guarda con cada sync diario. En unos días verás la tendencia aquí.';
     return;
   }
 
-  // Proxy HRV: FC más baja relativa al promedio = mejor recuperación
-  const avgFC = dataPoints.reduce((s,d) => s+d.fc, 0) / dataPoints.length;
-  const scores = dataPoints.map(d => Math.max(1, Math.min(10, 5 + (avgFC - d.fc) * 0.3)));
-
-  // Determinar tendencia
-  const recentScores = scores.slice(-5);
-  const olderScores  = scores.slice(-10, -5);
-  const recentAvg = recentScores.reduce((s,v)=>s+v,0) / recentScores.length;
-  const olderAvg  = olderScores.length ? olderScores.reduce((s,v)=>s+v,0)/olderScores.length : recentAvg;
+  const hrvs = dataPoints.map(d => d.hrv);
+  const recent = hrvs.slice(-5);
+  const older  = hrvs.slice(0, -5);
+  const recentAvg = recent.reduce((s,v)=>s+v,0) / recent.length;
+  const olderAvg  = older.length ? older.reduce((s,v)=>s+v,0)/older.length : recentAvg;
   const trend = recentAvg - olderAvg;
 
   let status, statusColor, statusDesc;
-  if (trend > 0.3) {
-    status = 'UPWARD ↑'; statusColor = 'var(--green)';
-    statusDesc = 'Tu recuperación está mejorando. Momento óptimo para sesiones de calidad.';
-  } else if (trend < -0.3) {
-    status = 'DOWNWARD ↓'; statusColor = 'var(--accent2)';
-    statusDesc = 'Tendencia a la baja. Señal de fatiga acumulada. Prioriza sueño e hidratación.';
+  if (trend > 1.5) {
+    status = 'SUBIENDO ↑'; statusColor = 'var(--green)';
+    statusDesc = 'Tu HRV está subiendo — buena recuperación. Momento óptimo para sesiones de calidad.';
+  } else if (trend < -1.5) {
+    status = 'BAJANDO ↓'; statusColor = 'var(--accent2)';
+    statusDesc = 'HRV a la baja — señal de fatiga acumulada o estrés. Prioriza sueño e hidratación.';
   } else {
-    status = 'BALANCED →'; statusColor = 'var(--accent)';
+    status = 'ESTABLE →'; statusColor = 'var(--accent)';
     statusDesc = 'HRV estable. Buen equilibrio entre carga y recuperación. Mantén el plan.';
   }
 
@@ -1425,19 +1420,15 @@ function renderHRVTrend(activities) {
   badge.style.color = statusColor;
   badge.style.border = '1px solid ' + statusColor + '44';
 
-  // SVG con eje Y etiquetado
-  const W=500, H=120, PL=32, PR=8, PT=10, PB=22;
+  const W=500, H=120, PL=36, PR=8, PT=10, PB=22;
   const cW=W-PL-PR, cH=H-PT-PB;
-  const minS = Math.min(...scores) - 0.5;
-  const maxS = Math.max(...scores) + 0.5;
-  const xP = i => PL + (i/(scores.length-1)) * cW;
+  const minS = Math.min(...hrvs) - 2;
+  const maxS = Math.max(...hrvs) + 2;
+  const xP = i => PL + (dataPoints.length > 1 ? (i/(dataPoints.length-1)) * cW : cW/2);
   const yP = v => PT + ((maxS-v)/(maxS-minS)) * cH;
-  const pts  = scores.map((s,i)=>xP(i)+','+yP(s)).join(' ');
-  const area = 'M'+scores.map((s,i)=>xP(i)+','+yP(s)).join('L')+'L'+xP(scores.length-1)+','+(PT+cH)+'L'+xP(0)+','+(PT+cH)+'Z';
-  const trendMid = scores.length > 5 ? xP(scores.length-5) : xP(0);
-
-  // 3 ticks en el eje Y con valores reales del rango
-  const yTicks = [minS+0.5, (minS+maxS)/2, maxS-0.5].map(v => parseFloat(v.toFixed(1)));
+  const pts  = hrvs.map((v,i)=>xP(i)+','+yP(v)).join(' ');
+  const area = 'M'+hrvs.map((v,i)=>xP(i)+','+yP(v)).join('L')+'L'+xP(hrvs.length-1)+','+(PT+cH)+'L'+xP(0)+','+(PT+cH)+'Z';
+  const yTicks = [minS+2, (minS+maxS)/2, maxS-2].map(v => Math.round(v));
 
   document.getElementById('hrvChartContainer').innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -1446,26 +1437,52 @@ function renderHRVTrend(activities) {
         <line x1="${PL}" y1="${yP(v)}" x2="${PL+cW}" y2="${yP(v)}" stroke="#1e1e1e" stroke-width="1" stroke-dasharray="3,4"/>
         <text x="${PL-5}" y="${yP(v)+3}" fill="#555" font-size="8" font-family="DM Mono,monospace" text-anchor="end">${v}</text>
       `).join('')}
-      <text x="7" y="${PT+cH/2}" fill="#444" font-size="7" font-family="DM Mono,monospace" text-anchor="middle" transform="rotate(-90,7,${PT+cH/2})">HRV</text>
+      <text x="9" y="${PT+cH/2}" fill="#444" font-size="7" font-family="DM Mono,monospace" text-anchor="middle" transform="rotate(-90,9,${PT+cH/2})">HRV ms</text>
       <path d="${area}" fill="${statusColor}08"/>
       <polyline points="${pts}" fill="none" stroke="${statusColor}" stroke-width="2" stroke-linejoin="round"/>
-      <line x1="${trendMid}" y1="${yP(olderAvg)}" x2="${xP(scores.length-1)}" y2="${yP(recentAvg)}" stroke="${statusColor}" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
-      ${scores.map((s,i)=>`<circle cx="${xP(i)}" cy="${yP(s)}" r="3" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5">
-        <title>${dataPoints[i].fecha} · FC ${dataPoints[i].fc}bpm · Load ${Math.round(dataPoints[i].load)}</title>
+      ${hrvs.map((v,i)=>`<circle cx="${xP(i)}" cy="${yP(v)}" r="3" fill="${statusColor}" stroke="#0a0a0a" stroke-width="1.5">
+        <title>${dataPoints[i].fecha} · HRV ${v}ms</title>
       </circle>`).join('')}
       ${dataPoints.map((d,i) => i%4===0||i===dataPoints.length-1 ? `<text x="${xP(i)}" y="${H-4}" fill="#444" font-size="8" font-family="DM Mono,monospace" text-anchor="middle">${d.fecha.slice(5)}</text>` : '').join('')}
     </svg>`;
 
-  document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">Basado en tendencia de FC de las últimas ${dataPoints.length} actividades. HRV directo disponible cuando Garmin lo sincronice.</span>`;
+  const last = dataPoints[dataPoints.length-1];
+  document.getElementById('hrvSummary').innerHTML = `<strong style="color:${statusColor}">${status}</strong> — ${statusDesc}<br><span style="color:var(--muted);font-size:11px">HRV semanal real de Garmin. Último dato: ${last.hrv}ms (${last.fecha}), basado en ${dataPoints.length} lecturas.</span>`;
 }
 
 // ── TRAINING STATUS ───────────────────────────
+// ACWR = carga aguda (últimos 7 días) ÷ carga crónica (últimos 28 días).
+// Es el indicador estándar de riesgo de lesión por sobrecarga.
+function renderACWR(ts) {
+  const el = document.getElementById('acwrValue');
+  const zoneEl = document.getElementById('acwrZone');
+  const acute = parseFloat(ts && ts.acute_load);
+  const chronic = parseFloat(ts && ts.chronic_load);
+  if (!acute || !chronic) {
+    el.textContent = '—';
+    zoneEl.textContent = 'Sin datos de carga';
+    return;
+  }
+  const acwr = acute / chronic;
+  let color, zona;
+  if (acwr < 0.8)       { color = 'var(--accent3)'; zona = 'Subcarga — hay margen'; }
+  else if (acwr <= 1.3) { color = 'var(--green)';   zona = 'Zona óptima ✓'; }
+  else if (acwr <= 1.5) { color = 'var(--accent)';  zona = 'Precaución — carga alta'; }
+  else                  { color = 'var(--accent2)'; zona = '⚠ Riesgo de lesión'; }
+  el.textContent = acwr.toFixed(2);
+  el.style.color = color;
+  zoneEl.textContent = zona;
+  zoneEl.style.color = color;
+}
+
 async function loadTrainingStatus() {
   try {
-    const data = await query('training_status_history', '?order=fecha.desc&limit=1');
+    const data = await query('training_status_history', '?order=fecha.desc&limit=30');
     if (!data || !data.length) return;
 
     const ts = data[0];
+    renderHRVReal(data);
+    renderACWR(ts);
     if (!ts.status && !ts.readiness) return;
 
     const statusColors = {

@@ -110,8 +110,8 @@ def sync_activity(activity, garmin_client, supabase):
     # Notificar a Make.com — convertir paces a mm:ss para que Claude los lea correctamente
     def fmt_pace(dec):
         if not dec: return None
-        m = int(dec)
-        s = round((dec - m) * 60)
+        total_seg = round(dec * 60)          # evita el caso "5:60" al redondear
+        m, s = divmod(total_seg, 60)
         return f"{m}:{s:02d}"
 
     webhook_payload = {**row}
@@ -174,8 +174,24 @@ def sync_training_status(garmin, supabase):
             "vo2max":       vo2max,
         }
 
-        supabase.table("training_status_history").insert(row).execute()
-        print(f"  ✓ Training Status: {status or '—'} | Readiness: {readiness_score or '—'} | HRV: {hrv_weekly or '—'}")
+        # Evitar duplicados: si ya hay una fila de hoy (corridas manuales o
+        # re-runs del workflow), actualizarla en vez de insertar otra.
+        updated = False
+        try:
+            last = supabase.table("training_status_history") \
+                .select("id, fecha").order("fecha", desc=True).limit(1).execute().data
+            if last and str(last[0].get("fecha", ""))[:10] == today:
+                supabase.table("training_status_history") \
+                    .update(row).eq("id", last[0]["id"]).execute()
+                updated = True
+        except Exception as e:
+            print(f"  ⚠ No se pudo verificar fila existente ({e}), insertando nueva.")
+
+        if not updated:
+            supabase.table("training_status_history").insert(row).execute()
+
+        accion = "actualizado" if updated else "guardado"
+        print(f"  ✓ Training Status {accion}: {status or '—'} | Readiness: {readiness_score or '—'} | HRV: {hrv_weekly or '—'}")
 
     except Exception as e:
         print(f"  ⚠ Error jalando Training Status: {e}")
@@ -212,8 +228,16 @@ def main():
         nuevas = [a for a in activities if str(a.get("activityId", "")) not in existing_ids]
 
         print(f"Encontradas {len(activities)} actividad(es), {len(nuevas)} nueva(s).")
+        errores = 0
         for activity in nuevas:
-            sync_activity(activity, garmin, supabase)
+            # Un error en una actividad no debe tumbar el resto del sync
+            try:
+                sync_activity(activity, garmin, supabase)
+            except Exception as e:
+                errores += 1
+                print(f"  ✗ Error en actividad {activity.get('activityId')}: {e}")
+        if errores:
+            print(f"⚠ {errores} actividad(es) fallaron — se reintentarán en la próxima corrida (ventana 72h).")
 
     # Sync training status (una vez por run, independiente de actividades)
     sync_training_status(garmin, supabase)
