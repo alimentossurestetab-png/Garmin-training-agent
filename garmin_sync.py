@@ -139,16 +139,38 @@ def sync_training_status(garmin, supabase):
         elif readiness_data and isinstance(readiness_data, dict):
             readiness_score = readiness_data.get("overallScore") or readiness_data.get("score")
 
-        # Training status from stats
-        stats = garmin.get_stats(today)
+        # Training status + cargas aguda/crónica.
+        # get_stats() NO trae acuteLoad/chronicLoad — el dato real vive en
+        # get_training_status() → latestTrainingStatusData → acuteTrainingLoadDTO.
         status = None
         acute_load = None
         chronic_load = None
 
-        if stats:
-            status = stats.get("trainingStatus") or stats.get("currentTrainingStatus")
-            acute_load = safe_float(stats.get("acuteLoad") or stats.get("shortTermLoad"), 1)
-            chronic_load = safe_float(stats.get("chronicLoad") or stats.get("longTermLoad"), 1)
+        try:
+            ts_data = garmin.get_training_status(today)
+            recent = (ts_data or {}).get("mostRecentTrainingStatus", {}) or {}
+            latest = recent.get("latestTrainingStatusData", {}) or {}
+            if latest:
+                # dict indexado por deviceId → tomar el primer device
+                dev = next(iter(latest.values()), {}) or {}
+                status = dev.get("trainingStatusFeedbackPhrase") or dev.get("trainingStatus") or status
+                acwr_dto = dev.get("acuteTrainingLoadDTO", {}) or {}
+                acute_load = safe_float(
+                    acwr_dto.get("dailyTrainingLoadAcute") or acwr_dto.get("acuteLoad"), 1)
+                chronic_load = safe_float(
+                    acwr_dto.get("dailyTrainingLoadChronic") or acwr_dto.get("chronicLoad"), 1)
+        except Exception as e:
+            print(f"  ⚠ get_training_status falló ({e}), usando get_stats como fallback.")
+
+        # Fallback: get_stats por si algún campo faltó arriba
+        if status is None or acute_load is None or chronic_load is None:
+            stats = garmin.get_stats(today)
+            if stats:
+                status = status or stats.get("trainingStatus") or stats.get("currentTrainingStatus")
+                if acute_load is None:
+                    acute_load = safe_float(stats.get("acuteLoad") or stats.get("shortTermLoad"), 1)
+                if chronic_load is None:
+                    chronic_load = safe_float(stats.get("chronicLoad") or stats.get("longTermLoad"), 1)
 
         # HRV weekly
         hrv_data = garmin.get_hrv_data(today)
